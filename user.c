@@ -15,6 +15,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdbool.h>
+#include <sys/msg.h> 
  
 #include "header.h"
  
@@ -24,8 +25,14 @@ int main(int argc, char *argv[]) {
 	pid_t pid = getpid();
 	unsigned int *seconds = 0, *nanoseconds = 0;
         message *msg = NULL;
-
- 	shmdt(seconds);
+	attachToSharedMemory(&msg, &seconds, &nanoseconds, msgid, timeid);
+	
+	initializeUser(msg, &seconds, &nanoseconds);
+printf("after init\n");
+	printf("USER: %d\n", pid);
+	printf("USER: seconds are: %u nano are: %u\n", *seconds, *nanoseconds);
+ 	printf("After printf\n");
+	shmdt(seconds);
      	shmdt(msg);
 	return 0;
 }

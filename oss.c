@@ -42,9 +42,15 @@ int main(int argc, char *argv[]){
 	int forked = 0;
 	//signal(SIGALRM, timerKiller);
         //alarm(2);
-	/*do{
-		
-	}while((forked < 100) && alrm == 0); */
+	do{
+		createArgs(sharedMsgMem, sharedTimeMem, msgid, timeid);
+		forkChild(sharedMsgMem, sharedTimeMem, seconds, nanoseconds);
+		sleep(2);
+		forked++;
+		*seconds += 1;
+		*nanoseconds += 100000;
+		printf("IN OSS current seconds: %u, %u\n", *seconds, *nanoseconds);
+	}while((forked < 5) && alrm == 0);
 	printf("OSS: OUT OF LOOP\n");	
 	
  	fclose(logFile);

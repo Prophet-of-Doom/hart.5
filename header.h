@@ -48,6 +48,7 @@ void attachToSharedMemory(message **msg, unsigned int **seconds, unsigned int **
 	*msg = (message *)shmat(msgid, NULL, 0);
 	*seconds = (unsigned int*)shmat(timeid, NULL, 0);
 	*nanoseconds = *seconds + 1;
+	printf("seconds %u\n", **seconds);
 };
 
 void createArgs(char *sharedMsgMem, char *sharedTimeMem, int msgid, int timeid){
@@ -55,9 +56,10 @@ void createArgs(char *sharedMsgMem, char *sharedTimeMem, int msgid, int timeid){
 	snprintf(sharedTimeMem, sizeof(sharedTimeMem)+2, "%d", timeid);
 };
 
-void initializeUser(message *msg, int PCBposition, unsigned int **seconds, unsigned int **nanoseconds){
+void initializeUser(message *msg, unsigned int **seconds, unsigned int **nanoseconds){
 	srand(time(NULL));
 	printf("USER PID %d\n", getpid());
+	//printf("Current time %u %u\n", *seconds, *nanoseconds);
 };
 
 void forkChild(char *msgMem, char *timeMem, unsigned int *seconds, unsigned int *nanoseconds){
