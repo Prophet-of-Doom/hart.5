@@ -19,213 +19,149 @@
 #ifndef TRUE
 #define TRUE (!FALSE)
 #endif
-typedef struct mesg_buffer { 
-    long mesg_type; 
-    char mesg_text[100]; 
-} message; 
+
+typedef struct resourceDesc{
+	int resources;
+	int max;
+}resourceDesc;
+
+typedef struct PCB{
+	int waitingToQueue;
+	int position;
+	int isSet;
+	int resourceLimits[20];
+	int resourceRequirements[20];
+	pid_t pid;
+}PCB;
 
 typedef struct QNodeType{
-	//PCB *qptr;
+	PCB *qptr;
 	struct QNodeType *next;
 	//struct QNodeType *currentNode;
 }QNode;
 
-static QNode *headLP, *tailLP, *headHP, *tailHP;
+static QNode *head, *tail;
 pid_t pid = 0;
-//message *msg = NULL;
+PCB pcbArray[18];
+resourceDesc resourceArray[20];
 
-void createSharedMemKeys(key_t *msgKey, key_t *timeKey){
-	*msgKey = ftok(".", 'G');
+void createSharedMemKeys(key_t *resourceKey, key_t *timeKey, key_t *pcbKey){
 	*timeKey = ftok(".", 'C');
+	*pcbKey = ftok(".", 'H');
+	*resourceKey = ftok(".", 'D');
 };
 
-void createSharedMemory(int *msgid, int *timeid, key_t msgKey, key_t timeKey){
-	*msgid = msgget(msgKey, 0666 | IPC_CREAT);
+void createSharedMemory(int *timeid, int *pcbid, int *resourceid, key_t timeKey, key_t pcbKey, key_t resourceKey){
 	*timeid = shmget(timeKey, (sizeof(unsigned int) * 2), 0666 | IPC_CREAT);
+	*pcbid = shmget(pcbKey, STRUCT_ARRAY_SIZE, 0666 | IPC_CREAT); //Grayson, tomorrow finish implementing the pcb
+	*resourceid = shmget(resourceKey, (sizeof(unsigned int) * 2), 0666 | IPC_CREAT);
 };
 
-void attachToSharedMemory(message **msg, unsigned int **seconds, unsigned int **nanoseconds, int msgid, int timeid){
-	*msg = (message *)shmat(msgid, NULL, 0);
+void attachToSharedMemory(unsigned int **seconds, unsigned int **nanoseconds, PCB **pcbPtr, resourceDesc **resourcePtr, int timeid, int pcbid, int resourceid){
 	*seconds = (unsigned int*)shmat(timeid, NULL, 0);
 	*nanoseconds = *seconds + 1;
-	printf("seconds %u\n", **seconds);
+	*pcbPtr = (PCB*)shmat(pcbid, NULL, 0);
+	*resourcePtr = (resourceDesc*)shmat(resourceid, NULL, 0);
 };
 
-void createArgs(char *sharedMsgMem, char *sharedTimeMem, int msgid, int timeid){
-	snprintf(sharedMsgMem, sizeof(sharedMsgMem)+2, "%d", msgid); 
+void createArgs(char *sharedTimeMem, char *sharedPCBMem, char *sharedPositionMem, char *sharedResourceMem, int timeid, int pcbid,int resourceid, int position){
 	snprintf(sharedTimeMem, sizeof(sharedTimeMem)+2, "%d", timeid);
+	snprintf(sharedPCBMem, sizeof(sharedPCBMem)+2, "%d", pcbid);
+	snprintf(sharedPositionMem, sizeof(sharedPositionMem)+2, "%d", position);
+	snprintf(sharedResourceMem, sizeof(sharedResourceMem)+2, "%d", resourceid);
 };
 
-void initializeUser(message *msg, unsigned int **seconds, unsigned int **nanoseconds){
+void initializeUser(unsigned int **seconds, unsigned int **nanoseconds, PCB *pcbPtr){
 	srand(time(NULL));
 	printf("USER PID %d\n", getpid());
 	//printf("Current time %u %u\n", *seconds, *nanoseconds);
 };
 
-void forkChild(char *msgMem, char *timeMem, unsigned int *seconds, unsigned int *nanoseconds){
+void forkChild(char *sharedTimeMem, char *sharedPCBMem, char *sharedPositionMem, char*sharedResourceMem, unsigned int *seconds, unsigned int *nanoseconds, int *position){
 	if((pid = fork()) == 0){
-		printf("OSS: Created a user at %u.%u\n", *seconds, *nanoseconds);
-		execlp("./user", "./user", msgMem, timeMem, NULL);
+		
+		execlp("./user", "./user", sharedTimeMem, sharedPCBMem, sharedPositionMem,sharedResourceMem, NULL);
 	}
 	//printf("position in forkchild: %d\n", *arrayPosition);
 	
 };
 
 //For the queues
-/*
-void enqueueReadyProcess(PCB *sptr){
-	int i;
-	for(i = 0; i < 18; i++){
-		if(sptr[i].waitingToQueue == 0){
-			if(sptr[i].isSet == 1){
-				if(sptr[i].processPriority == 1){
-					enqueueHP(sptr, i);
-			
-				} else {
-					enqueueLP(sptr, i);
-				}	
-			}
-		}
-	}
-};
 
-
-
-int isLPQueueEmpty(){
-	if(headLP == NULL){
-		printf("HEAD LP EMPTY\n");
+int isBlockedQueueEmpty(){
+	if(head == NULL){
+		printf("HEAD EMPTY\n");
 		return 1;
 	} else {
-		printf("HEAD LP FULL\n");
+		printf("HEAD FULL\n");
 		return 0;
         }
 };
 
-int isHPQueueEmpty(){
-	if(headHP == NULL){
-		printf("HEAD HP EMPTY\n");
-		return 1;
-	}else{
-		printf("HEAD HP FULL\n");
-		return 0;	
-	}
-};
 
-int isLPQueueFull(){
+int isBlockedQueueFull(){
         return FALSE;
 };
 
-int isHPQueueFull(){
-        return FALSE;
+void initBlockedQueue(){
+	head = tail = NULL;
 };
 
-void initLPQueue(){
-	headLP = tailLP = NULL;
-};
-
-void initHPQueue(){
-	headHP = tailHP = NULL;
-};
-
-void clearLPQueue(){
+void clearBlockedQueue(){
 	QNode *temp;
-	while(headLP != NULL){
-		temp = headLP;
-		headLP = headLP->next;
+	while(head != NULL){
+		temp = head;
+		head = head->next;
 		free(temp);
 	}
-	headLP = tailLP = NULL;
+	head = tail = NULL;
 };
 
-void clearHPQueue(){
-	QNode *temp;
-        while(headHP != NULL){
-                temp = headHP;
-                headHP = headHP->next;
-                free(temp);
-        }
-        headHP = tailHP = NULL;
-};
-
-int enqueueHP(PCB *sptr, int position){
-	QNode *temp;
-	if(isHPQueueFull()) return FALSE;
-	printf("ENQUEUEING HP %d\n", sptr[position].pid);
-	temp = (QNode *)malloc(sizeof(QNode));
-	temp -> qptr = &sptr[position];
-	temp -> next = NULL;
-	if(headHP == NULL){
-		headHP = tailHP = temp;
-	} else {
-		tailHP -> next = temp;
-		tailHP = temp;
-	}
-		
-	QNode *currentNode = headHP;
-	while(currentNode != NULL){
-		printf("user: in the queue %d -- \n", currentNode->qptr[0].pid);
-		currentNode = currentNode->next;
-	}
-	return TRUE; 
-};
-
-int enqueueLP(PCB *sptr, int position){
+int enqueueBlocked(PCB *sptr, int position){
 	 QNode *temp;
-        if(isLPQueueFull()) return FALSE;
-	printf("ENQUEUEING LP %d\n", sptr[position].pid);
+        if(isBlockedQueueFull()) return FALSE;
+	printf("ENQUEUEING Blocked %d\n", sptr[position].pid);
         temp = (QNode *)malloc(sizeof(QNode));
         temp -> qptr = &sptr[position];
         temp -> next = NULL;
-        if(headLP == NULL){
-                headLP = tailLP = temp;
+        if(head == NULL){
+                head = tail = temp;
         } else {
-                tailLP -> next = temp;
-                tailLP = temp;
+                tail -> next = temp;
+                tail = temp;
         }
         return TRUE;
 };
 
-pid_t dequeueHP(PCB *sptr, int *position){
-	printf("DEQUEUEING HP %d\n", sptr[*position].pid);
-	QNode *temp;
-	if(isHPQueueEmpty()){
-		return FALSE;
-	} else {
-		*position = headHP->qptr[0].position;
-		printf("POSITIONHP: %d\n", *position);
-		sptr[*position] = headHP->qptr[0];
-		temp = headHP;
-		headHP = headHP->next;
-	
-		free(temp);
-		
-		if(isHPQueueEmpty()){
-			headHP = tailHP = NULL;
-		}
-	}
-	return sptr[*position].pid;
-};
-
-pid_t dequeueLP(PCB *sptr, int *position){	
-	printf("DEQUEUEING LP %d\n", sptr[*position].pid);
+pid_t dequeueBlocked(PCB *sptr, int *position){	
+	printf("DEQUEUEING Blocked %d\n", sptr[*position].pid);
 	
 	QNode *temp;
-        if(isLPQueueEmpty()){
+        if(isBlockedQueueEmpty()){
                 return FALSE;
         } else {
-                *position = headLP->qptr[0].position;
-	        printf("POSITIONLP: %d\n", *position);
-		sptr[*position] = headLP->qptr[0];
-		temp = headLP;
-		headLP = headLP->next;
+                *position = head->qptr[0].position;
+	        printf("POSITION Blocked: %d\n", *position);
+		sptr[*position] = head->qptr[0];
+		temp = head;
+		head = head->next;
                 free(temp);
 
-                if(isLPQueueEmpty()){
-                        headLP = tailLP = NULL;
+                if(isBlockedQueueEmpty()){
+                        head = tail = NULL;
                 }
         }
         return sptr[*position].pid;
 };
- */
-
+ 
+void enqueueBlockedProcess(PCB *sptr){
+	int i;
+	for(i = 0; i < 18; i++){
+		if(sptr[i].waitingToQueue == 0){
+			if(sptr[i].isSet == 1){
+				enqueueBlocked(sptr, i);
+			}
+		}
+	}
+};
 // end of queue funcs

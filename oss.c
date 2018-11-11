@@ -9,11 +9,59 @@
 #include <sys/wait.h>
 #include <sys/msg.h>
 #include <time.h>
-
-
+struct mesg_buffer { 
+    long mesg_type; 
+    char mesg_text[100]; 
+} message; 
 int alrm;
+
 void timerKiller(int sign_no){
         alrm = 1;
+}
+void checkArrPosition(PCB *pcbPtr, int *position){
+        int i = 0;
+        for(i = 0; i < 18; i++){
+                if(pcbPtr[i].isSet == 0){
+			printf("yeah %d\n", i);
+                        *position = i;
+                        break;
+                }
+        }
+}
+void initializeResourceArray(resourceDesc *resourcePtr){
+	int i;
+	for(i = 0; i < 20; i++){
+		resourcePtr[i].resources = rand()%(10)+1;
+		resourcePtr[i].max = resourcePtr[i].resources;
+		printf("Resource %d was assigned with %d resources\n", i, resourcePtr[i].resources);
+	}
+}
+
+void initializePCBArrays(PCB *pcbPtr, int position, resourceDesc *resourcePtr){
+	int i, random, limit;  
+	//ok so my question is, does this limit take into account the resource amount?
+	//so like instead of that 4 would i put the max of the resourceDesc?
+	//but that doesnt make sense because it doesnt take into account the other resources
+	//Sets the resource limit for user
+	for(i = 0; i < 20; i++){
+		limit = rand()%resourcePtr[i].max+1;
+		pcbPtr[position].resourceLimits[i] = limit;
+		random = rand()%limit+1;
+		pcbPtr[position].resourceRequirements[i] = random; //Sets the requirement for every resource
+	}
+}
+void printLog(resourceDesc *resourcePtr, PCB *pcbPtr){
+	int i, j;
+	printf("\t");
+	for(i = 0; i < 20; i++){
+		printf("R%d\t", i);
+	}
+	for (i = 0; i < 18; i++){
+		printf("\nP%d\t", i);
+		for(j = 0; j < 20; j++){
+			printf("%d\t", pcbPtr[i].resourceRequirements[j]);
+		}
+	}
 }
 
 int main(int argc, char *argv[]){
@@ -24,40 +72,55 @@ int main(int argc, char *argv[]){
 	filename = "log.txt";
         FILE *logFile = fopen(filename, "a");
 
-	key_t msgKey = 0, timeKey = 0; 
-	int msgid = 0, timeid = 0;
-	unsigned int *seconds = 0, *nanoseconds = 0;
-	message *msg = NULL;	
-	char sharedMsgMem[10], sharedTimeMem[10];
+	key_t msgKey = ftok(".", 'G'), timeKey = 0, pcbKey = 0, resourceKey = 0; 
+	int msgid = msgget(msgKey, 0666 | IPC_CREAT), timeid = 0, pcbid = 0 ,resourceid = 0, position = 0;
+	unsigned int *seconds = 0, *nanoseconds = 0;	
+	PCB *pcbPtr = NULL;	
+	resourceDesc *resourcePtr = NULL;
+	char sharedTimeMem[10], sharedPCBMem[10], sharedPositionMem[10], sharedResourceMem[10];
+	//pid_t pid = 0;
 	
-	pid_t pid = 0;
-	
-        createSharedMemKeys(&msgKey, &timeKey);
-        createSharedMemory(&msgid, &timeid, msgKey, timeKey);
-	attachToSharedMemory(&msg, &seconds, &nanoseconds, msgid, timeid);
+        createSharedMemKeys(&resourceKey, &timeKey, &pcbKey);
+        createSharedMemory(&timeid, &pcbid, &resourceid, timeKey, pcbKey, resourceKey);
+	attachToSharedMemory(&seconds, &nanoseconds, &pcbPtr ,&resourcePtr, timeid, pcbid, resourceid);
 
-      	//initLPQueue();
+      	initBlockedQueue();
+	initializeResourceArray(resourcePtr);	
 	//initHPQueue();
  	
 	int forked = 0;
 	//signal(SIGALRM, timerKiller);
         //alarm(2);
-	do{
-		createArgs(sharedMsgMem, sharedTimeMem, msgid, timeid);
-		forkChild(sharedMsgMem, sharedTimeMem, seconds, nanoseconds);
-		sleep(2);
+	do{		
+		//sessentially i think it would be easier to fork 18 children first and in the process
+		//of doing so you set up the PCB requirements so every time you fork a child within the PCB you 
+		//set its shit
+		checkArrPosition(pcbPtr, &position);		
+		pcbPtr[position].isSet = 1;
+		pcbPtr[position].position = position;
+		initializePCBArrays(pcbPtr, position, resourcePtr);
+		printf("local position is %d pcb position is %d\n", position, pcbPtr[position].position);
+		createArgs(sharedTimeMem, sharedPCBMem, sharedPositionMem, sharedResourceMem, timeid, pcbid ,resourceid, position);
+		forkChild(sharedTimeMem, sharedPCBMem, sharedPositionMem, sharedResourceMem, seconds, nanoseconds, &position);
+		printf("OSS: Created a user at %u.%u\n", *seconds, *nanoseconds);
+		//sleep(2);
 		forked++;
 		*seconds += 1;
 		*nanoseconds += 100000;
-		printf("IN OSS current seconds: %u, %u\n", *seconds, *nanoseconds);
+		printf("IN OSS current seconds: %u, %u, position %d\n", *seconds, *nanoseconds, pcbPtr[position].position);
+		printLog(resourcePtr, pcbPtr);
+		msgrcv(msgid, &message, sizeof(message), 1, 0);
+		printf("Message received is %s\n", message.mesg_text);
 	}while((forked < 5) && alrm == 0);
 	printf("OSS: OUT OF LOOP\n");	
 	
  	fclose(logFile);
-        shmdt(msg);
+    
 	shmdt(seconds);
+	shmdt(pcbPtr);
         shmctl(msgid, IPC_RMID, NULL);
 	shmctl(timeid, IPC_RMID, NULL);
+	shmctl(pcbid, IPC_RMID, NULL);
 	kill(0, SIGTERM);
 	return 0;
 }
