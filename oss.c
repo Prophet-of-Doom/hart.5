@@ -63,7 +63,19 @@ void printLog(resourceDesc *resourcePtr, PCB *pcbPtr){
 		}
 	}
 }
-
+void setRandomForktime(unsigned int *seconds, unsigned int *nanoseconds, unsigned int *forkTimeSeconds, unsigned int *forkTimeNanoseconds){
+	unsigned int random = rand()%1000000000;
+	*forkTimeNanoseconds = 0;
+	*forkTimeSeconds = 0;	
+	if((random + *nanoseconds) >=1000000000){
+		*forkTimeSeconds += 1;
+		*forkTimeNanoseconds = (random + *nanoseconds) - 1000000000;
+	} else {
+		*forkTimeNanoseconds = random + *nanoseconds;
+	}
+	*forkTimeSeconds = *seconds + rand()%2;
+}
+		  
 int main(int argc, char *argv[]){
 	srand(time(NULL));
 	alrm = 0;
@@ -74,7 +86,7 @@ int main(int argc, char *argv[]){
 
 	key_t msgKey = ftok(".", 'G'), timeKey = 0, pcbKey = 0, resourceKey = 0; 
 	int msgid = msgget(msgKey, 0666 | IPC_CREAT), timeid = 0, pcbid = 0 ,resourceid = 0, position = 0;
-	unsigned int *seconds = 0, *nanoseconds = 0;	
+	unsigned int *seconds = 0, *nanoseconds = 0, forkTimeSeconds = 0, forkTimeNanoseconds = 0;
 	PCB *pcbPtr = NULL;	
 	resourceDesc *resourcePtr = NULL;
 	char sharedTimeMem[10], sharedPCBMem[10], sharedPositionMem[10], sharedResourceMem[10];
@@ -88,30 +100,52 @@ int main(int argc, char *argv[]){
 	initializeResourceArray(resourcePtr);	
 	//initHPQueue();
  	
-	int forked = 0;
+	int forked = 0, forkTimeSet = 0;
 	//signal(SIGALRM, timerKiller);
         //alarm(2);
 	do{		
 		//sessentially i think it would be easier to fork 18 children first and in the process
 		//of doing so you set up the PCB requirements so every time you fork a child within the PCB you 
 		//set its shit
-		checkArrPosition(pcbPtr, &position);		
-		pcbPtr[position].isSet = 1;
-		pcbPtr[position].position = position;
-		initializePCBArrays(pcbPtr, position, resourcePtr);
-		printf("local position is %d pcb position is %d\n", position, pcbPtr[position].position);
-		createArgs(sharedTimeMem, sharedPCBMem, sharedPositionMem, sharedResourceMem, timeid, pcbid ,resourceid, position);
-		forkChild(sharedTimeMem, sharedPCBMem, sharedPositionMem, sharedResourceMem, seconds, nanoseconds, &position);
-		printf("OSS: Created a user at %u.%u\n", *seconds, *nanoseconds);
-		//sleep(2);
-		forked++;
-		*seconds += 1;
-		*nanoseconds += 100000;
-		printf("IN OSS current seconds: %u, %u, position %d\n", *seconds, *nanoseconds, pcbPtr[position].position);
-		printLog(resourcePtr, pcbPtr);
-		msgrcv(msgid, &message, sizeof(message), 1, 0);
-		printf("Message received is %s\n", message.mesg_text);
-	}while((forked < 5) && alrm == 0);
+		/*Actually heres what its gonna do, theres a main loop that creates the random times to create children*/	
+		//printf("OSS: At top current time %d.%d\n", *seconds, *nanoseconds);
+		/*Ok so now what I need to do is keep track of what processes are alive and not blocked
+		I can probably do it in here. Children also terminate on their own so I don't need to waitpid
+		I just check for a message constantly*/
+		if(forkTimeSet == 0){		
+			setRandomForktime(seconds, nanoseconds, &forkTimeSeconds, &forkTimeNanoseconds);
+			forkTimeSet = 1;
+			printf("OSS: Fork time set for %d.%d\n", forkTimeSeconds, forkTimeNanoseconds);
+		}		
+		*nanoseconds += 5000;
+		if (*nanoseconds >= 1000000000){ //billion
+                	*seconds += 1;
+                       	*nanoseconds = 0;
+                }
+		if((*seconds == forkTimeSeconds && *nanoseconds >= forkTimeNanoseconds) || *seconds > forkTimeSeconds){
+			forkTimeSet = 0;
+			checkArrPosition(pcbPtr, &position);		
+			pcbPtr[position].isSet = 1;
+			pcbPtr[position].position = position;
+			initializePCBArrays(pcbPtr, position, resourcePtr);
+			printf("OSS: local position is %d pcb position is %d\n", position, pcbPtr[position].position);
+			createArgs(sharedTimeMem, sharedPCBMem, sharedPositionMem, sharedResourceMem, timeid, pcbid ,resourceid, position);
+			forkChild(sharedTimeMem, sharedPCBMem, sharedPositionMem, sharedResourceMem, seconds, nanoseconds, &position);
+			printf("OSS: Created a user at %u.%u\n", *seconds, *nanoseconds);
+			//sleep(2);
+			forked++;
+			printLog(resourcePtr, pcbPtr);
+			sleep(1);
+			printf("OSS: Before MSG RCV\n");
+			msgrcv(msgid, &message, sizeof(message), 1, 0);
+			printf("OSS: Message received is %s\n", message.mesg_text);
+		}
+		/*Maybe I'd have a function check for terminating. Like have the user set a 
+		terminating variable right before it dies. Oh also what if I had a for loop that was the size of 
+		all running processes and checked for a message rcv. BUT how would it know that the same child is 
+		sending more than 1 message?*/
+	}while((*seconds < 10) && alrm == 0 && forked < 18);
+
 	printf("OSS: OUT OF LOOP\n");	
 	
  	fclose(logFile);

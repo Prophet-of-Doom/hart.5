@@ -26,7 +26,7 @@ typedef struct resourceDesc{
 }resourceDesc;
 
 typedef struct PCB{
-	int waitingToQueue;
+	int waitingToBlock;
 	int position;
 	int isSet;
 	int resourceLimits[20];
@@ -86,6 +86,21 @@ void forkChild(char *sharedTimeMem, char *sharedPCBMem, char *sharedPositionMem,
 	
 };
 
+void resourceAllocation(PCB *pcbPtr, resourceDesc *resource, int position, int resourceRequested){
+	/*So the child requests the resource. It will go through every resource description and subtract the available resource by the needed amount. If the subtraction results in a negative number, then it is added to the blocked queue. Also do I need to specify position?*/
+	if((resource[resourceRequested].resources - pcbPtr[position].resourceRequirements[resourceRequested]) < 0){
+		pcbPtr[position].waitingToBlock = 1; //it will be blocked in oss later
+		printf("P%d is being blocked because it needed %d resources from R%d and it only had %d\n", position, pcbPtr[position].resourceRequirements[resourceRequested], resourceRequested, resource[resourceRequested].resources);
+	} else {
+		resource[resourceRequested].resources -= pcbPtr[position].resourceRequirements[resourceRequested];
+		printf("P%d is requesting %d resources from R%d bringing it to %d from max of %d\n", position, pcbPtr[position].resourceRequirements[resourceRequested], resourceRequested, resource[resourceRequested].resources, resource[resourceRequested].max);
+	}	
+}
+	
+void resourceRelease(PCB *pcbPtr, resourceDesc *resource, int position, int resourceRelease){
+	resource[resourceRelease].resources += pcbPtr[position].resourceRequirements[resourceRelease];
+	pcbPtr[position].resourceRequirements[resourceRelease] = 0;
+}
 //For the queues
 
 int isBlockedQueueEmpty(){
@@ -157,10 +172,8 @@ pid_t dequeueBlocked(PCB *sptr, int *position){
 void enqueueBlockedProcess(PCB *sptr){
 	int i;
 	for(i = 0; i < 18; i++){
-		if(sptr[i].waitingToQueue == 0){
-			if(sptr[i].isSet == 1){
-				enqueueBlocked(sptr, i);
-			}
+		if(sptr[i].waitingToBlock == 1){
+			enqueueBlocked(sptr, i);
 		}
 	}
 };

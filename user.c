@@ -39,15 +39,15 @@ int main(int argc, char *argv[]) {
 	pcbPtr[position].isSet = 1;
 	//so the user is given a maximum amount it can ask from each resource, then in user it randomly
 	//decides how much of the resource it needs. 
-	
-	message.mesg_type = 1;
-	sprintf(message.mesg_text,"user position being passed is %d and the pcb is %d\n", position, pcbPtr[position].position);
-	msgsnd(msgid, &message, sizeof(message), 0);
 	initializeUser(&seconds, &nanoseconds, pcbPtr);
-	printf("after init\n");
+	printf("USER: after init\n");
+	message.mesg_type = 1;
+	sprintf(message.mesg_text,"user %d position being passed is %d and the pcb is %d\n", pid, position, pcbPtr[position].position);
+	printf("USER: Before MSG SEND\n");
+	msgsnd(msgid, &message, sizeof(message), 0);
+	printf("USER: AFTER msgsnd\n");
 	printf("USER: %d\n", pid);
 	printf("USER: seconds are: %u nano are: %u\n", *seconds, *nanoseconds);
- 	printf("After printf\n");
 	shmdt(seconds);
      	shmdt(pcbPtr);
 	return 0;
