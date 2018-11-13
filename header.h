@@ -19,10 +19,7 @@
 #ifndef TRUE
 #define TRUE (!FALSE)
 #endif
-typedef struct mesg_buffer { 
-    long mesg_type; 
-    char mesg_text[100]; 
-} message; 
+
 
 typedef struct QNodeType{
 	//PCB *qptr;
@@ -30,42 +27,42 @@ typedef struct QNodeType{
 	//struct QNodeType *currentNode;
 }QNode;
 
-static QNode *headLP, *tailLP, *headHP, *tailHP;
+//static QNode *headLP, *tailLP, *headHP, *tailHP;
 pid_t pid = 0;
 //message *msg = NULL;
 
-void createSharedMemKeys(key_t *msgKey, key_t *timeKey){
-	*msgKey = ftok(".", 'G');
+void createSharedMemKeys( key_t *timeKey){
+	
 	*timeKey = ftok(".", 'C');
 };
 
-void createSharedMemory(int *msgid, int *timeid, key_t msgKey, key_t timeKey){
-	*msgid = msgget(msgKey, 0666 | IPC_CREAT);
+void createSharedMemory( int *timeid, key_t timeKey){
+	
 	*timeid = shmget(timeKey, (sizeof(unsigned int) * 2), 0666 | IPC_CREAT);
 };
 
-void attachToSharedMemory(message **msg, unsigned int **seconds, unsigned int **nanoseconds, int msgid, int timeid){
-	*msg = (message *)shmat(msgid, NULL, 0);
+void attachToSharedMemory( unsigned int **seconds, unsigned int **nanoseconds, int timeid){
+	
 	*seconds = (unsigned int*)shmat(timeid, NULL, 0);
 	*nanoseconds = *seconds + 1;
-	printf("seconds %u\n", **seconds);
+	//printf("seconds %u\n", **seconds);
 };
 
-void createArgs(char *sharedMsgMem, char *sharedTimeMem, int msgid, int timeid){
-	snprintf(sharedMsgMem, sizeof(sharedMsgMem)+2, "%d", msgid); 
+void createArgs( char *sharedTimeMem, int timeid){
+	//snprintf(sharedMsgMem, sizeof(sharedMsgMem)+2, "%d", msgid); 
 	snprintf(sharedTimeMem, sizeof(sharedTimeMem)+2, "%d", timeid);
 };
 
-void initializeUser(message *msg, unsigned int **seconds, unsigned int **nanoseconds){
+void initializeUser( unsigned int **seconds, unsigned int **nanoseconds){
 	srand(time(NULL));
-	printf("USER PID %d\n", getpid());
+	//printf("USER PID %d\n", getpid());
 	//printf("Current time %u %u\n", *seconds, *nanoseconds);
 };
 
-void forkChild(char *msgMem, char *timeMem, unsigned int *seconds, unsigned int *nanoseconds){
+void forkChild(char *timeMem, unsigned int *seconds, unsigned int *nanoseconds){
 	if((pid = fork()) == 0){
-		printf("OSS: Created a user at %u.%u\n", *seconds, *nanoseconds);
-		execlp("./user", "./user", msgMem, timeMem, NULL);
+		//printf("OSS: Created a user at %u.%u\n", *seconds, *nanoseconds);
+		execlp("./user", "./user", timeMem, NULL);
 	}
 	//printf("position in forkchild: %d\n", *arrayPosition);
 	
