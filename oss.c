@@ -44,7 +44,11 @@ void initializePCBArrays(PCB *pcbPtr, int position, resourceDesc *resourcePtr){
 	//but that doesnt make sense because it doesnt take into account the other resources
 	//Sets the resource limit for user
 	for(i = 0; i < 20; i++){
-		limit = rand()%resourcePtr[i].max+1;
+		
+		limit = rand()%10+1;//resourcePtr[i].max+1;
+		if(limit > resourcePtr[i].max){
+			limit = resourcePtr[i].max;
+		}
 		pcbPtr[position].resourceLimits[i] = limit;
 		random = rand()%limit+1;
 		pcbPtr[position].resourceRequirements[i] = random; //Sets the requirement for every resource
@@ -135,7 +139,6 @@ int main(int argc, char *argv[]){
 			//sleep(2);
 			forked++;
 			printLog(resourcePtr, pcbPtr);
-			sleep(1);
 			printf("OSS: Before MSG RCV\n");
 			msgrcv(msgid, &message, sizeof(message), 1, 0);
 			printf("OSS: Message received is %s\n", message.mesg_text);
@@ -152,6 +155,7 @@ int main(int argc, char *argv[]){
     
 	shmdt(seconds);
 	shmdt(pcbPtr);
+	msgctl(msgid, IPC_RMID, NULL);
         shmctl(msgid, IPC_RMID, NULL);
 	shmctl(timeid, IPC_RMID, NULL);
 	shmctl(pcbid, IPC_RMID, NULL);
