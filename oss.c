@@ -7,6 +7,7 @@
 #include <sys/ipc.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <string.h>
 #include <sys/msg.h>
 #include <time.h>
 struct mesg_buffer { 
@@ -38,23 +39,40 @@ void initializeResourceArray(resourceDesc *resourcePtr){
 }
 
 void initializePCBArrays(PCB *pcbPtr, int position, resourceDesc *resourcePtr){
-	int i, random, limit;  
+	int i, random, outerlimit, limit;  
 	//ok so my question is, does this limit take into account the resource amount?
 	//so like instead of that 4 would i put the max of the resourceDesc?
 	//but that doesnt make sense because it doesnt take into account the other resources
 	//Sets the resource limit for user
-	for(i = 0; i < 20; i++){
-		
-		limit = rand()%10+1;//resourcePtr[i].max+1;
-		if(limit > resourcePtr[i].max){
+	outerlimit = rand()%10+1;
+	for(i = 0; i < 20; i++){	
+		//limit = rand()%10+1;//resourcePtr[i].max+1;
+		if(outerlimit > resourcePtr[i].max){
 			limit = resourcePtr[i].max;
+		} else {
+			limit = outerlimit;
 		}
 		pcbPtr[position].resourceLimits[i] = limit;
 		random = rand()%limit+1;
 		pcbPtr[position].resourceRequirements[i] = random; //Sets the requirement for every resource
 	}
 }
-void printLog(resourceDesc *resourcePtr, PCB *pcbPtr){
+void printProcessLimits(resourceDesc *resourcePtr, PCB *pcbPtr){
+	printf("PROCESS MAX TABLE (The most each process gets)\n");
+	int i, j;
+	printf("\t");
+	for(i = 0; i < 20; i++){
+		printf("R%d\t", i);
+	}
+	for (i = 0; i < 18; i++){
+		printf("\nP%d\t", i);
+		for(j = 0; j < 20; j++){
+			printf("%d\t", pcbPtr[i].resourceLimits[j]);
+		}
+	}
+}
+void printProcessRequirement(resourceDesc *resourcePtr, PCB *pcbPtr){
+	printf("PROCESS REQUIREMENT TABLE (what each process needs)\n");
 	int i, j;
 	printf("\t");
 	for(i = 0; i < 20; i++){
@@ -65,6 +83,37 @@ void printLog(resourceDesc *resourcePtr, PCB *pcbPtr){
 		for(j = 0; j < 20; j++){
 			printf("%d\t", pcbPtr[i].resourceRequirements[j]);
 		}
+	}
+}
+void printProcessAllocation(resourceDesc *resourcePtr, PCB *pcbPtr){
+	printf("\nPROCESS ALLOCATION TABLE (what each process currently has)\n");
+	int i, j;
+	printf("\t");
+	for(i = 0; i < 20; i++){
+		printf("R%d\t", i);
+	}
+	for (i = 0; i < 18; i++){
+		printf("\nP%d\t", i);
+		for(j = 0; j < 20; j++){
+			printf("%d\t", pcbPtr[i].resourcesAllocated[j]);
+		}
+	}
+}
+
+void printResources(resourceDesc *resourcePtr, PCB *pcbPtr){
+	printf("\nCURRENT RESOURCE TABLE (what each resource currently has)\n");
+	int i;
+	printf("\t");
+	for(i = 0; i < 20; i++){
+		printf("R%d\t", i);
+	}
+	printf("\nMAX:\t");
+	for (i = 0; i < 20; i++){
+		printf("%d\t", resourcePtr[i].max);
+	}	
+	printf("\nCRNT:\t");
+	for (i = 0; i < 20; i++){
+		printf("%d\t", resourcePtr[i].resources);
 	}
 }
 void setRandomForktime(unsigned int *seconds, unsigned int *nanoseconds, unsigned int *forkTimeSeconds, unsigned int *forkTimeNanoseconds){
@@ -101,10 +150,11 @@ int main(int argc, char *argv[]){
 	attachToSharedMemory(&seconds, &nanoseconds, &pcbPtr ,&resourcePtr, timeid, pcbid, resourceid);
 
       	initBlockedQueue();
-	initializeResourceArray(resourcePtr);	
-	//initHPQueue();
- 	
-	int forked = 0, forkTimeSet = 0;
+	initializeResourceArray(resourcePtr);
+	printResources(resourcePtr, pcbPtr);
+	
+	int forked = 0, forkTimeSet = 0, i = 0;
+	char childRequestType[10], childRequestResource[10];
 	//signal(SIGALRM, timerKiller);
         //alarm(2);
 	do{		
@@ -127,8 +177,10 @@ int main(int argc, char *argv[]){
                        	*nanoseconds = 0;
                 }
 		if((*seconds == forkTimeSeconds && *nanoseconds >= forkTimeNanoseconds) || *seconds > forkTimeSeconds){
+		if(forked == 0){
+			printf("PCB: %p\n", &resourcePtr[0]);		
 			forkTimeSet = 0;
-			checkArrPosition(pcbPtr, &position);		
+			checkArrPosition(pcbPtr, &position);//maybe have this return a value if its full or not and encapsulate the rest of this in it		
 			pcbPtr[position].isSet = 1;
 			pcbPtr[position].position = position;
 			initializePCBArrays(pcbPtr, position, resourcePtr);
@@ -138,11 +190,55 @@ int main(int argc, char *argv[]){
 			printf("OSS: Created a user at %u.%u\n", *seconds, *nanoseconds);
 			//sleep(2);
 			forked++;
-			printLog(resourcePtr, pcbPtr);
-			printf("OSS: Before MSG RCV\n");
-			msgrcv(msgid, &message, sizeof(message), 1, 0);
-			printf("OSS: Message received is %s\n", message.mesg_text);
+			//for(i = 0; i < 20; i ++){ // initial resource allocation.
+			//	if(pcbPtr[i].isSet == 1){
+			//		printf("IN HERE ASSHOLE\n");
+					if(resourceAllocation(pcbPtr, resourcePtr, position) == 0){
+						//add to blocked queue;
+						enqueueBlockedProcess(pcbPtr);
+						//break;
+					}
+			//	}
+			//}
+			printProcessLimits(resourcePtr, pcbPtr);
+			printProcessRequirement(resourcePtr, pcbPtr);
+			printProcessAllocation(resourcePtr, pcbPtr);
+			printResources(resourcePtr, pcbPtr);
+			//printf("\nOSS: Before MSG RCV\n");
+			//msgrcv(msgid, &message, sizeof(message), 1, 0);
+			//printf("OSS: Message received is %s\n", message.mesg_text);
+		}}
+		//loop that goes through every user and checks to see if theres a request on that channel
+		for(i = 0; i < 18; i++){
+			if(pcbPtr[i].isSet == 1){
+				if(msgrcv(msgid, &message, sizeof(message), pcbPtr[i].pid, IPC_NOWAIT) > 0){
+					printf("OSS: Message received is %s\n", message.mesg_text);
+					strcpy(childRequestResource, strtok(message.mesg_text, " "));
+					strcpy(childRequestType, strtok(NULL, " "));
+					if(atoi(childRequestType) == 1){
+						//request resource;
+						//maybe have function return a value for whether it should be blocked
+						//change requirement based on msg
+						pcbPtr[i].resourceRequirements[atoi(childRequestResource)] += 1;
+						if(resourceAllocation(pcbPtr, resourcePtr, i) == 0){
+							//add to blocked queue;
+							printf("OSS: Adding P%d to blocked queue\n", i);
+							enqueueBlockedProcess(pcbPtr);
+						} else {
+							printProcessLimits(resourcePtr, pcbPtr);
+							printProcessRequirement(resourcePtr, pcbPtr);
+							printProcessAllocation(resourcePtr, pcbPtr);
+							printResources(resourcePtr, pcbPtr);
+						}
+					} else {
+						//release resource;
+					}
+					sprintf(message.mesg_text,"wake up shithead");
+					msgsnd(msgid, &message, sizeof(message), pid);
+				}
+			}
 		}
+		
 		/*Maybe I'd have a function check for terminating. Like have the user set a 
 		terminating variable right before it dies. Oh also what if I had a for loop that was the size of 
 		all running processes and checked for a message rcv. BUT how would it know that the same child is 
