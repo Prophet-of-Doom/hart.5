@@ -148,7 +148,7 @@ int main(int argc, char *argv[]){
         createSharedMemKeys(&resourceKey, &timeKey, &pcbKey);
         createSharedMemory(&timeid, &pcbid, &resourceid, timeKey, pcbKey, resourceKey);
 	attachToSharedMemory(&seconds, &nanoseconds, &pcbPtr ,&resourcePtr, timeid, pcbid, resourceid);
-
+	printf("OSS timeid %d pcbid %d resourceid %d\n", timeid, pcbid, resourceid);
       	initBlockedQueue();
 	initializeResourceArray(resourcePtr);
 	printResources(resourcePtr, pcbPtr);

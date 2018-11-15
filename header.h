@@ -49,9 +49,9 @@ PCB pcbArray[18];
 resourceDesc resourceArray[20];
 
 void createSharedMemKeys(key_t *resourceKey, key_t *timeKey, key_t *pcbKey){
-	*timeKey = ftok(".", 'C');
-	*pcbKey = ftok(".", 'H');
-	*resourceKey = ftok(".", 'D');
+	*timeKey = ftok(".", 2820);
+	*pcbKey = ftok(".", 4378);
+	*resourceKey = ftok(".", 8564);
 };
 
 void createSharedMemory(int *timeid, int *pcbid, int *resourceid, key_t timeKey, key_t pcbKey, key_t resourceKey){
@@ -59,35 +59,32 @@ void createSharedMemory(int *timeid, int *pcbid, int *resourceid, key_t timeKey,
 	*pcbid = shmget(pcbKey, STRUCT_ARRAY_SIZE, 0666 | IPC_CREAT); //Grayson, tomorrow finish implementing the pcb
 	*resourceid = shmget(resourceKey, (sizeof(unsigned int) * 2), 0666 | IPC_CREAT);
 	if(*timeid == -1){
-		printf("%s: \n", strerror(errno));	
-		perror("Error in Child time program.\n");		
+		printf("timeid %s\n", strerror(errno));		
 	}
 	if(*pcbid == -1){
-		printf("%s: \n", strerror(errno));	
-		perror("Error in Child pcb program.\n");		
+		printf("pcbid %s\n", strerror(errno));		
 	}
 	if(*resourceid == -1){
-		printf("%s: \n", strerror(errno));	
-		perror("Error in Child  resource program.\n");		
+		printf("resourceid %s\n", strerror(errno));		
 	}
 };
 
 void attachToSharedMemory(unsigned int **seconds, unsigned int **nanoseconds, PCB **pcbPtr, resourceDesc **resourcePtr, int timeid, int pcbid, int resourceid){
 	*seconds = (unsigned int*)shmat(timeid, NULL, 0);
 	if(*seconds == -1){
-		perror("seconds shmat ");
+		printf("seconds %s\n", strerror(errno));	
 	}
 	*nanoseconds = *seconds + 1;
 	if(*nanoseconds == -1){
-		perror("nanoseconds shmat ");
+		printf("nanoseconds %s\n", strerror(errno));	
 	}
 	*pcbPtr = (PCB*)shmat(pcbid, NULL, 0);
 	if(*pcbPtr == -1){
-		perror("pcb shmat ");
+		printf("pcbptr %s\n", strerror(errno));	
 	}
 	*resourcePtr = (resourceDesc*)shmat(resourceid, NULL, 0);
 	if(*resourcePtr == -1){
-		perror("resource shmat ");
+		printf("resourceptr %s\n", strerror(errno));	
 	}
 };
 

@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
 	int pcbid = atoi(argv[2]);
 	int position = atoi(argv[3]);
 	int resourceid = atoi(argv[4]);
-
+	printf("USER timeid %d pcbid %d resourceid %d\n", timeid, pcbid, resourceid);
 	int complete = 0, event = 0, eventResource = 0;	
 	pid_t pid = getpid();
 	unsigned int *seconds = 0, *nanoseconds = 0, eventTimeSeconds = 0, eventTimeNanoseconds = 0;
