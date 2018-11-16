@@ -19,15 +19,16 @@ int alrm;
 void timerKiller(int sign_no){
         alrm = 1;
 }
-void checkArrPosition(PCB *pcbPtr, int *position){
+int checkArrPosition(PCB *pcbPtr, int *position){
         int i = 0;
         for(i = 0; i < 18; i++){
                 if(pcbPtr[i].isSet == 0){
 			printf("yeah %d\n", i);
                         *position = i;
-                        break;
+                        return 1;
                 }
         }
+	return 0;
 }
 void initializeResourceArray(resourceDesc *resourcePtr){
 	int i;
@@ -58,7 +59,7 @@ void initializePCBArrays(PCB *pcbPtr, int position, resourceDesc *resourcePtr){
 	}
 }
 void printProcessLimits(resourceDesc *resourcePtr, PCB *pcbPtr){
-	printf("PROCESS MAX TABLE (The most each process gets)\n");
+	printf("\nPROCESS MAX TABLE (The most each process gets)\n");
 	int i, j;
 	printf("\t");
 	for(i = 0; i < 20; i++){
@@ -72,7 +73,7 @@ void printProcessLimits(resourceDesc *resourcePtr, PCB *pcbPtr){
 	}
 }
 void printProcessRequirement(resourceDesc *resourcePtr, PCB *pcbPtr){
-	printf("PROCESS REQUIREMENT TABLE (what each process needs)\n");
+	printf("\nPROCESS REQUIREMENT TABLE (what each process needs)\n");
 	int i, j;
 	printf("\t");
 	for(i = 0; i < 20; i++){
@@ -128,6 +129,7 @@ void setRandomForktime(unsigned int *seconds, unsigned int *nanoseconds, unsigne
 	}
 	*forkTimeSeconds = *seconds + rand()%2;
 }
+
 		  
 int main(int argc, char *argv[]){
 	srand(time(NULL));
@@ -177,65 +179,97 @@ int main(int argc, char *argv[]){
                        	*nanoseconds = 0;
                 }
 		if((*seconds == forkTimeSeconds && *nanoseconds >= forkTimeNanoseconds) || *seconds > forkTimeSeconds){
-		if(forked == 0){
-			printf("PCB: %p\n", &resourcePtr[0]);		
+			if(checkArrPosition(pcbPtr, &position) == 1){ //also gotta check to make sure theres no more than 18	
+				//printf("PCB: %p\n", &resourcePtr[0]);		
+				
+				pcbPtr[position].position = position;
+				initializePCBArrays(pcbPtr, position, resourcePtr);
+				//printf("OSS: local position is %d pcb position is %d\n", position, pcbPtr[position].position);
+				createArgs(sharedTimeMem, sharedPCBMem, sharedPositionMem, sharedResourceMem, timeid, pcbid ,resourceid, position);
+				forkChild(sharedTimeMem, sharedPCBMem, sharedPositionMem, sharedResourceMem, seconds, nanoseconds, &position);
+				printf("OSS: Created a user at %u.%u\n", *seconds, *nanoseconds);
+				//sleep(2);
+				forked++;
+				//for(i = 0; i < 20; i ++){ // initial resource allocation.
+				//	if(pcbPtr[i].isSet == 1){
+				//		printf("IN HERE ASSHOLE\n");
+						resourceAllocation(pcbPtr, resourcePtr, position);
+							//add to blocked queue;
+							
+							//break;
+						
+				//	}
+				//}
+				printProcessLimits(resourcePtr, pcbPtr);
+				printProcessRequirement(resourcePtr, pcbPtr);
+				printProcessAllocation(resourcePtr, pcbPtr);
+				printResources(resourcePtr, pcbPtr);
+				//printf("\nOSS: Before MSG RCV\n");
+				//msgrcv(msgid, &message, sizeof(message), 1, 0);
+				//printf("OSS: Message received is %s\n", message.mesg_text);
+			}
 			forkTimeSet = 0;
-			checkArrPosition(pcbPtr, &position);//maybe have this return a value if its full or not and encapsulate the rest of this in it		
-			pcbPtr[position].isSet = 1;
-			pcbPtr[position].position = position;
-			initializePCBArrays(pcbPtr, position, resourcePtr);
-			printf("OSS: local position is %d pcb position is %d\n", position, pcbPtr[position].position);
-			createArgs(sharedTimeMem, sharedPCBMem, sharedPositionMem, sharedResourceMem, timeid, pcbid ,resourceid, position);
-			forkChild(sharedTimeMem, sharedPCBMem, sharedPositionMem, sharedResourceMem, seconds, nanoseconds, &position);
-			printf("OSS: Created a user at %u.%u\n", *seconds, *nanoseconds);
-			//sleep(2);
-			forked++;
-			//for(i = 0; i < 20; i ++){ // initial resource allocation.
-			//	if(pcbPtr[i].isSet == 1){
-			//		printf("IN HERE ASSHOLE\n");
-					if(resourceAllocation(pcbPtr, resourcePtr, position) == 0){
-						//add to blocked queue;
-						enqueueBlockedProcess(pcbPtr);
-						//break;
-					}
-			//	}
-			//}
-			printProcessLimits(resourcePtr, pcbPtr);
-			printProcessRequirement(resourcePtr, pcbPtr);
-			printProcessAllocation(resourcePtr, pcbPtr);
-			printResources(resourcePtr, pcbPtr);
-			//printf("\nOSS: Before MSG RCV\n");
-			//msgrcv(msgid, &message, sizeof(message), 1, 0);
-			//printf("OSS: Message received is %s\n", message.mesg_text);
-		}}
+		}
 		//loop that goes through every user and checks to see if theres a request on that channel
 		for(i = 0; i < 18; i++){
-			if(pcbPtr[i].isSet == 1){
+			if(pcbPtr[i].isSet == 1 && pcbPtr[i].waitingToBlock == 0){
 				if(msgrcv(msgid, &message, sizeof(message), pcbPtr[i].pid, IPC_NOWAIT) > 0){
-					printf("OSS: Message received is %s\n", message.mesg_text);
+					printf("\nOSS: Message received is %s\n", message.mesg_text);
 					strcpy(childRequestResource, strtok(message.mesg_text, " "));
 					strcpy(childRequestType, strtok(NULL, " "));
 					if(atoi(childRequestType) == 1){
 						//request resource;
 						//maybe have function return a value for whether it should be blocked
 						//change requirement based on msg
-						pcbPtr[i].resourceRequirements[atoi(childRequestResource)] += 1;
-						if(resourceAllocation(pcbPtr, resourcePtr, i) == 0){
-							//add to blocked queue;
-							printf("OSS: Adding P%d to blocked queue\n", i);
-							enqueueBlockedProcess(pcbPtr);
-						} else {
+												
+						if((pcbPtr[i].resourcesAllocated[atoi(childRequestResource)] + 1) <= pcbPtr[i].resourceLimits[atoi(childRequestResource)]){
+							pcbPtr[i].resourceRequirements[atoi(childRequestResource)] += 1;
+							if(resourceAllocation(pcbPtr, resourcePtr, i) == 0){
+								//add to blocked queue;
+								printf("OSS: P%d is blocked\n", i);
+							} else {
+								printProcessLimits(resourcePtr, pcbPtr);
+								printProcessRequirement(resourcePtr, pcbPtr);
+								printProcessAllocation(resourcePtr, pcbPtr);
+								printResources(resourcePtr, pcbPtr);
+							}
+						}
+					} else if(atoi(childRequestType) == 0){
+						//release resource;
+						if((pcbPtr[i].resourcesAllocated[atoi(childRequestResource)] - 1) >= 0){
+							pcbPtr[i].resourceRequirements[atoi(childRequestResource)] += 1;
+							resourceRelease(pcbPtr, resourcePtr, i);
 							printProcessLimits(resourcePtr, pcbPtr);
 							printProcessRequirement(resourcePtr, pcbPtr);
 							printProcessAllocation(resourcePtr, pcbPtr);
 							printResources(resourcePtr, pcbPtr);
 						}
 					} else {
-						//release resource;
+						clearPcb(pcbPtr, resourcePtr, i);	
 					}
+					message.mesg_type = pid;
 					sprintf(message.mesg_text,"wake up shithead");
-					msgsnd(msgid, &message, sizeof(message), pid);
+					msgsnd(msgid, &message, sizeof(message), pcbPtr[i].pid);
 				}
+			}
+		}
+		for(i = 0; i < 18; i++){
+			
+			//if theres memory available in resourceptr.resources 
+				//then go through all blocked processes and see if they need it
+					//if it does then  give it and unblock it
+				//then go through all unblocked processes and see if they need anything
+			if(pcbPtr[i].waitingToBlock == 1 && pcbPtr[i].isSet == 1){
+				unblockProcess(pcbPtr, resourcePtr, i);
+			}
+
+			
+		}
+		for(i = 0; i < 18; i++){
+			if(pcbPtr[i].isSet == 1){
+				message.mesg_type = pcbPtr[i].pid;
+				sprintf(message.mesg_text,"wake up shithead");
+				msgsnd(msgid, &message, sizeof(message), pcbPtr[i].pid);
 			}
 		}
 		
@@ -243,7 +277,7 @@ int main(int argc, char *argv[]){
 		terminating variable right before it dies. Oh also what if I had a for loop that was the size of 
 		all running processes and checked for a message rcv. BUT how would it know that the same child is 
 		sending more than 1 message?*/
-	}while((*seconds < 10) && alrm == 0 && forked < 18);
+	}while((*seconds < 20) && alrm == 0 && forked < 101);
 
 	printf("OSS: OUT OF LOOP\n");	
 	
@@ -251,10 +285,12 @@ int main(int argc, char *argv[]){
     
 	shmdt(seconds);
 	shmdt(pcbPtr);
+	shmdt(resourcePtr);
 	msgctl(msgid, IPC_RMID, NULL);
         shmctl(msgid, IPC_RMID, NULL);
 	shmctl(timeid, IPC_RMID, NULL);
 	shmctl(pcbid, IPC_RMID, NULL);
+	shmctl(resourceid, IPC_RMID, NULL);
 	kill(0, SIGTERM);
 	return 0;
 }

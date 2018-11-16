@@ -35,28 +35,21 @@ void setRandomEventTime(unsigned int *seconds, unsigned int *nanoseconds, unsign
 	*eventTimeSeconds = *seconds + rand()%2;
 }
 int main(int argc, char *argv[]) { 	
-	printf("What fuck1111111111111111111111111111111111111111111111111111111111111\n");
         key_t msgKey = ftok(".", 'G');
 	int msgid = msgget(msgKey, 0666 | IPC_CREAT);
 	int timeid = atoi(argv[1]);
 	int pcbid = atoi(argv[2]);
 	int position = atoi(argv[3]);
 	int resourceid = atoi(argv[4]);
-	printf("USER timeid %d pcbid %d resourceid %d\n", timeid, pcbid, resourceid);
 	int complete = 0, event = 0, eventResource = 0;	
 	pid_t pid = getpid();
 	unsigned int *seconds = 0, *nanoseconds = 0, eventTimeSeconds = 0, eventTimeNanoseconds = 0;
         resourceDesc *resourcePtr = NULL;
 	PCB *pcbPtr = NULL;
-	printf("What fuck2222222222222222222222222222222222222222222222222222222\n");
+
 	attachToSharedMemory(&seconds, &nanoseconds, &pcbPtr, &resourcePtr, timeid, pcbid, resourceid);
-	printf("User pcb: %p\n", &resourcePtr[position]);
-	printf("What fuck33333333333333333333333333333333333333333333333333333333333333\n");
 	initializeUser(&seconds, &nanoseconds, pcbPtr, position);
-	printf("What fuck44444444444444444444444444444444444444444444444444444444\n");
 	
-	//int test = pcbPtr[position].isSet;
-	printf("WHAT FUCL $#@$@#$#@$#@$@#$@#$@#$@#$\n");
 	pcbPtr[position].position = position;
 	//so the user is given a maximum amount it can ask from each resource, then in user it randomly
 	//decides how much of the resource it needs. 
@@ -64,29 +57,34 @@ int main(int argc, char *argv[]) {
 	setRandomEventTime(seconds, nanoseconds, &eventTimeSeconds, &eventTimeNanoseconds);
 	//initializeUser(&seconds, &nanoseconds, pcbPtr, position);
 	message.mesg_type = pid;
-
+	pcbPtr[position].isSet = 1;
 	while(complete == 0){
-		
+		msgrcv(msgid, &message, sizeof(message), pid, 0);
 		if(pcbPtr[position].waitingToBlock == 0){
 			//printf("What fuck!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 			if((*seconds == eventTimeSeconds && *nanoseconds >= eventTimeNanoseconds) || *seconds > eventTimeSeconds){						
-				printf("USER: Event happening.\n");
-				event = 30;//rand()%99;
+				event = rand()%99;
 				if(event >= 0 && event < 20){
+					printf("USER: P%d Event DEATH block status %d.\n", position, pcbPtr[position].waitingToBlock);
 					//kill & release all
+					sprintf(message.mesg_text,"%d %d user dead\n", 0, 2);
+					msgsnd(msgid, &message, sizeof(message), pid);
 					complete = 1;
-				} else if (event >= 20 && event < 60){
+				} else if (event >= 20 && event < 40){
 					//request random
+					printf("USER: P%d Event REQUEST block status %d.\n", position, pcbPtr[position].waitingToBlock);
 					eventResource = rand()%20;
 					sprintf(message.mesg_text,"%d %d user wants x\n", eventResource, 1);
 					msgsnd(msgid, &message, sizeof(message), pid);
 					msgrcv(msgid, &message, sizeof(message), pid, 0);
 					//may block child somehow as it waits for confirmation.
-				} else if (event >= 60){
+				} else if (event >= 40){
 					//release random
+					printf("USER: P%d Event RELEASE block status %d.\n", position, pcbPtr[position].waitingToBlock);
 					eventResource = rand()%20;
 					sprintf(message.mesg_text,"%d %d user releases x\n", eventResource, 0);
 					msgsnd(msgid, &message, sizeof(message), pid);
+					msgrcv(msgid, &message, sizeof(message), pid, 0);
 				}
 				setRandomEventTime(seconds, nanoseconds, &eventTimeSeconds, &eventTimeNanoseconds);
 			}
@@ -102,5 +100,7 @@ int main(int argc, char *argv[]) {
 	printf("USER: seconds are: %u nano are: %u\n", *seconds, *nanoseconds);
 	shmdt(seconds);
      	shmdt(pcbPtr);
+	shmdt(resourcePtr);
+	msgctl(msgid, IPC_RMID, NULL);
 	return 0;
 }

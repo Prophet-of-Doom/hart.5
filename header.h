@@ -89,16 +89,15 @@ void attachToSharedMemory(unsigned int **seconds, unsigned int **nanoseconds, PC
 };
 
 void createArgs(char *sharedTimeMem, char *sharedPCBMem, char *sharedPositionMem, char *sharedResourceMem, int timeid, int pcbid,int resourceid, int position){
-	snprintf(sharedTimeMem, sizeof(sharedTimeMem)+2, "%d", timeid);
-	snprintf(sharedPCBMem, sizeof(sharedPCBMem)+2, "%d", pcbid);
-	snprintf(sharedPositionMem, sizeof(sharedPositionMem)+2, "%d", position);
-	snprintf(sharedResourceMem, sizeof(sharedResourceMem)+2, "%d", resourceid);
+	snprintf(sharedTimeMem, sizeof(sharedTimeMem)+25, "%d", timeid);
+	snprintf(sharedPCBMem, sizeof(sharedPCBMem)+25, "%d", pcbid);
+	snprintf(sharedPositionMem, sizeof(sharedPositionMem)+25, "%d", position);
+	snprintf(sharedResourceMem, sizeof(sharedResourceMem)+25, "%d", resourceid);
 };
 
 void initializeUser(unsigned int **seconds, unsigned int **nanoseconds, PCB *pcbPtr, int position){
 	srand(time(NULL));
 	pcbPtr[position].pid = getpid();
-	printf("USER PIWhat the fuck did you just fucking say about me, you little bitch? I'll have you know I graduated top of my class in the Navy Seals, and I've been involved in numerous secret raids on Al-Quaeda, and I have over 300 confirmed kills. I am trained in gorilla warfare and I'm the top sniper in the entire US armed forces. You are nothing to me but just another target. I will wipe you the fuck out with precision the likes of which has never been seen before on this Earth, mark my fucking words. You think you can get away with saying that shit to me over the Internet? Think again, fucker. As we speak I am contacting my secret network of spies across the USA and your IP is being traced right now so you better prepare for the storm, maggot. The storm that wipes out the pathetic little thing you call your life. You're fucking dead, kid. I can be anywhere, anytime, and I can kill you in over seven hundred ways, and that's just with my bare hands. Not only am I extensively trained in unarmed combat, but I have access to the entire arsenal of the United States Marine Corps and I will use it to its full extent to wipe your miserable ass off the face of the continent, you little shit. If only you could have known what unholy retribution your little  comment was about to bring down upon you, maybe you would have held your fucking tongue. But you couldn't, you didn't, and now you're paying the price, you goddamn idiot. I will shit fury all over you and you will drown in it. You're fucking dead, kiddo.D %d\n", getpid());
 	
 	//printf("Current time %u %u\n", *seconds, *nanoseconds);
 };
@@ -119,35 +118,66 @@ int resourceAllocation(PCB *pcbPtr, resourceDesc *resource, int position){
 	//if resource requested is more than whats available
 	int i;
 	//im confused as to what the resource requirements are in relation. will it ever request more than that? can it request more than what is started with? NO!
-	for(i = 0; i < 	20; i++){	
-		if((pcbPtr[position].resourcesAllocated[i] + pcbPtr[position].resourceRequirements[i]) > pcbPtr[position].resourceLimits[i]){ //checking if its asking for more than its limit
-			printf("P%d wanted more than its limit %d\n", getpid(), pcbPtr[position].resourceLimits[i]); 		
-			//return 1;
-		} else if(resource[i].resources < pcbPtr[position].resourceRequirements[i]){ //checking if it shouold block cause process aksing more than resource currently has
-			pcbPtr[position].waitingToBlock = 1; //it will be blocked in oss later
-			printf("P%d is being blocked because it needed %d resources from R%d and it only had %d.\n", position, pcbPtr[position].resourceRequirements[i], i, resource[i].resources);
-			return 0; 
-		} else { //otherwise give it the thing.
-			printf("P%d is requesting %d resources from R%d", position, pcbPtr[position].resourceRequirements[i], i);
-			resource[i].resources -= pcbPtr[position].resourceRequirements[i]; //available - request
-			pcbPtr[position].resourcesAllocated[i] += pcbPtr[position].resourceRequirements[i]; //allocation + request
-			pcbPtr[position].resourceRequirements[i] -= pcbPtr[position].resourceRequirements[i]; // need - request;
-			printf(" bringing R to %d from max of %d\n", resource[i].resources, resource[i].max);
-		}
-	}	
+	for(i = 0; i < 	20; i++){
+		if(pcbPtr[position].resourceRequirements[i] > 0){	
+			if((pcbPtr[position].resourcesAllocated[i] + pcbPtr[position].resourceRequirements[i]) > pcbPtr[position].resourceLimits[i]){ //checking if its asking for more than its limit
+				printf("P%d wanted more than its limit %d of resource R%d\n", getpid(), pcbPtr[position].resourceLimits[i], i); 		
+				//return 1;
+			} else if(resource[i].resources < pcbPtr[position].resourceRequirements[i]){ //checking if it shouold block cause process aksing more than resource currently has
+				pcbPtr[position].waitingToBlock = 1; //it will be blocked in oss later
+				printf("P%d is being blocked because it needed %d resources from R%d and it only had %d.\n", position, pcbPtr[position].resourceRequirements[i], i, resource[i].resources);
+				return 0; 
+			} else { //otherwise give it the thing.
+				printf("P%d is requesting %d resources from R%d", position, pcbPtr[position].resourceRequirements[i], i);
+				resource[i].resources -= pcbPtr[position].resourceRequirements[i]; //available - request
+				pcbPtr[position].resourcesAllocated[i] += pcbPtr[position].resourceRequirements[i]; //allocation + request
+				pcbPtr[position].resourceRequirements[i] -= pcbPtr[position].resourceRequirements[i]; // need - request;
+				printf(" bringing R to %d from max of %d\n", resource[i].resources, resource[i].max);
+			}
+		}	
+	}
 	return 1;
 }
 	
-void resourceRelease(PCB *pcbPtr, resourceDesc *resource, int position, int resourceRelease, int amount){
+void resourceRelease(PCB *pcbPtr, resourceDesc *resource, int position){
 	//first i have to check if I can actually release what I want to release
-	
-	if(pcbPtr[position].resourcesAllocated[resourceRelease] < amount){ //can it release more than it asked for?
-		return;
-	} else {
-		resource[resourceRelease].resources += amount; //release it
-		pcbPtr[position].resourceRequirements[resourceRelease] -= amount; //decrement process requirement
-		pcbPtr[position].resourcesAllocated[resourceRelease] -= amount; //decrement process allocated
+	int i;
+	for(i = 0; i < 20; i++){
+		if(pcbPtr[position].resourceRequirements[i] > 0){
+			if(pcbPtr[position].resourcesAllocated[i] < pcbPtr[position].resourceRequirements[i]){ //can it release more than it asked for?
+				printf("canny do that m8\n");				
+				return;
+			} else {
+				printf("P%d is releasing %d resources from R%d", position, pcbPtr[position].resourceRequirements[i], i);
+				resource[i].resources += pcbPtr[position].resourceRequirements[i]; //release it				
+				pcbPtr[position].resourcesAllocated[i] -= pcbPtr[position].resourceRequirements[i]; //decrement process allocated
+				pcbPtr[position].resourceRequirements[i] -= pcbPtr[position].resourceRequirements[i]; //decrement process requirement
+			}
+		}
 	}
+}
+void unblockProcess(PCB *pcbPtr, resourceDesc *resourcePtr, int position){
+	int i;
+	for(i = 0; i < 20; i++){
+		if(pcbPtr[position].resourceRequirements[i] <= resourcePtr[i].resources){
+			resourceAllocation(pcbPtr, resourcePtr, position);
+			pcbPtr[position].waitingToBlock = 0;
+			return;
+		}	
+	}
+}
+void clearPcb(PCB *pcbPtr, resourceDesc *resourcePtr, int position){
+	int i;
+	for(i = 0; i < 20; i++){
+		resourcePtr[i].resources += pcbPtr[position].resourcesAllocated[i]; //release it	
+		pcbPtr[position].resourceLimits[i] = 0;		
+		pcbPtr[position].resourceRequirements[i] = 0;
+		pcbPtr[position].resourcesAllocated[i] = 0;
+	}
+	pcbPtr[position].waitingToBlock = 0;
+	pcbPtr[position].position = 0;
+	pcbPtr[position].isSet = 0;
+	pcbPtr[position].pid = 0;	
 }
 //For the queues
 
