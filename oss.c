@@ -23,7 +23,7 @@ int checkArrPosition(PCB *pcbPtr, int *position){
         int i = 0;
         for(i = 0; i < 18; i++){
                 if(pcbPtr[i].isSet == 0){
-			printf("yeah %d\n", i);
+			printf("Position %d is free\n", i);
                         *position = i;
                         return 1;
                 }
@@ -54,7 +54,7 @@ void initializePCBArrays(PCB *pcbPtr, int position, resourceDesc *resourcePtr){
 			limit = outerlimit;
 		}
 		pcbPtr[position].resourceLimits[i] = limit;
-		random = rand()%limit+1;
+		random = rand()%limit;
 		pcbPtr[position].resourceRequirements[i] = random; //Sets the requirement for every resource
 	}
 }
@@ -140,7 +140,7 @@ int main(int argc, char *argv[]){
         FILE *logFile = fopen(filename, "a");
 
 	key_t msgKey = ftok(".", 'G'), timeKey = 0, pcbKey = 0, resourceKey = 0; 
-	int msgid = msgget(msgKey, 0666 | IPC_CREAT), timeid = 0, pcbid = 0 ,resourceid = 0, position = 0;
+	int msgid = msgget(msgKey, 0666 | IPC_CREAT), timeid = 0, pcbid = 0 ,resourceid = 0, position = 0, verbose = 0, requestsGranted=0, deadlockAvoidance = 0, releases = 0;
 	unsigned int *seconds = 0, *nanoseconds = 0, forkTimeSeconds = 0, forkTimeNanoseconds = 0;
 	PCB *pcbPtr = NULL;	
 	resourceDesc *resourcePtr = NULL;
@@ -156,7 +156,7 @@ int main(int argc, char *argv[]){
 	printResources(resourcePtr, pcbPtr);
 	
 	int forked = 0, forkTimeSet = 0, i = 0;
-	char childRequestType[10], childRequestResource[10];
+	char childRequestType[20], childRequestResource[20], childIdentifier[20];
 	//signal(SIGALRM, timerKiller);
         //alarm(2);
 	do{		
@@ -189,7 +189,9 @@ int main(int argc, char *argv[]){
 				forkChild(sharedTimeMem, sharedPCBMem, sharedPositionMem, sharedResourceMem, seconds, nanoseconds, &position);
 				printf("OSS: Created a user at %u.%u\n", *seconds, *nanoseconds);
 				//sleep(2);
+				pcbPtr[position].complete = 0;
 				forked++;
+				printf("FORKING! %d\n", forked);
 				//for(i = 0; i < 20; i ++){ // initial resource allocation.
 				//	if(pcbPtr[i].isSet == 1){
 				//		printf("IN HERE ASSHOLE\n");
@@ -200,56 +202,68 @@ int main(int argc, char *argv[]){
 						
 				//	}
 				//}
-				printProcessLimits(resourcePtr, pcbPtr);
-				printProcessRequirement(resourcePtr, pcbPtr);
-				printProcessAllocation(resourcePtr, pcbPtr);
-				printResources(resourcePtr, pcbPtr);
+				//printProcessLimits(resourcePtr, pcbPtr);
+				//printProcessRequirement(resourcePtr, pcbPtr);
+				//printProcessAllocation(resourcePtr, pcbPtr);
+				//printResources(resourcePtr, pcbPtr);
 				//printf("\nOSS: Before MSG RCV\n");
 				//msgrcv(msgid, &message, sizeof(message), 1, 0);
 				//printf("OSS: Message received is %s\n", message.mesg_text);
 			}
 			forkTimeSet = 0;
+			printProcessLimits(resourcePtr, pcbPtr);
+			printProcessRequirement(resourcePtr, pcbPtr);
+			printProcessAllocation(resourcePtr, pcbPtr);
+			printResources(resourcePtr, pcbPtr);
 		}
 		//loop that goes through every user and checks to see if theres a request on that channel
 		for(i = 0; i < 18; i++){
 			if(pcbPtr[i].isSet == 1 && pcbPtr[i].waitingToBlock == 0){
 				if(msgrcv(msgid, &message, sizeof(message), pcbPtr[i].pid, IPC_NOWAIT) > 0){
-					printf("\nOSS: Message received is %s\n", message.mesg_text);
-					strcpy(childRequestResource, strtok(message.mesg_text, " "));
-					strcpy(childRequestType, strtok(NULL, " "));
-					if(atoi(childRequestType) == 1){
-						//request resource;
-						//maybe have function return a value for whether it should be blocked
-						//change requirement based on msg
+					printf("\nOSS: Message received is %s\n", message.mesg_text);					
+					strcpy(childIdentifier, strtok(message.mesg_text," "));		
+							
+					if(atoi(childIdentifier) == 27){	
+						
+						strcpy(childRequestResource, strtok(NULL, " "));
+						strcpy(childRequestType, strtok(NULL, " "));		
+						if(atoi(childRequestType) == 1){
+							//request resource;
+							//maybe have function return a value for whether it should be blocked
+							//change requirement based on msg
 												
-						if((pcbPtr[i].resourcesAllocated[atoi(childRequestResource)] + 1) <= pcbPtr[i].resourceLimits[atoi(childRequestResource)]){
-							pcbPtr[i].resourceRequirements[atoi(childRequestResource)] += 1;
-							if(resourceAllocation(pcbPtr, resourcePtr, i) == 0){
-								//add to blocked queue;
-								printf("OSS: P%d is blocked\n", i);
-							} else {
+							if((pcbPtr[i].resourcesAllocated[atoi(childRequestResource)] + 1) <= pcbPtr[i].resourceLimits[atoi(childRequestResource)]){
+								pcbPtr[i].resourceRequirements[atoi(childRequestResource)] += 1;
+								if(resourceAllocation(pcbPtr, resourcePtr, i) == 0){
+									//add to blocked queue;
+									printf("OSS: P%d is blocked\n", i);
+								} else {
+									printProcessLimits(resourcePtr, pcbPtr);
+									printProcessRequirement(resourcePtr, pcbPtr);
+									printProcessAllocation(resourcePtr, pcbPtr);
+									printResources(resourcePtr, pcbPtr);
+									requestsGranted++;
+								}
+							}
+						} else if(atoi(childRequestType) == 0){
+							//release resource;
+							releases++;
+							if((pcbPtr[i].resourcesAllocated[atoi(childRequestResource)] - 1) >= 0){
+								pcbPtr[i].resourceRequirements[atoi(childRequestResource)] += 1;
+								resourceRelease(pcbPtr, resourcePtr, i);
 								printProcessLimits(resourcePtr, pcbPtr);
 								printProcessRequirement(resourcePtr, pcbPtr);
 								printProcessAllocation(resourcePtr, pcbPtr);
 								printResources(resourcePtr, pcbPtr);
 							}
+						} else {
+							fprintf(logFile, "User made %d requests with %d fulfilled, made %d releases, and was blocked %d times.\n", pcbPtr[i].requestsMade, pcbPtr[i].requestsGranted, pcbPtr[i].releasesMade, pcbPtr[i].timesBlocked);
+							clearPcb(pcbPtr, resourcePtr, i);	
 						}
-					} else if(atoi(childRequestType) == 0){
-						//release resource;
-						if((pcbPtr[i].resourcesAllocated[atoi(childRequestResource)] - 1) >= 0){
-							pcbPtr[i].resourceRequirements[atoi(childRequestResource)] += 1;
-							resourceRelease(pcbPtr, resourcePtr, i);
-							printProcessLimits(resourcePtr, pcbPtr);
-							printProcessRequirement(resourcePtr, pcbPtr);
-							printProcessAllocation(resourcePtr, pcbPtr);
-							printResources(resourcePtr, pcbPtr);
-						}
-					} else {
-						clearPcb(pcbPtr, resourcePtr, i);	
+						message.mesg_type = pcbPtr[i].pid;
+						sprintf(message.mesg_text,"wake up shithead");
+						msgsnd(msgid, &message, sizeof(message), pcbPtr[i].pid);
 					}
-					message.mesg_type = pid;
-					sprintf(message.mesg_text,"wake up shithead");
-					msgsnd(msgid, &message, sizeof(message), pcbPtr[i].pid);
 				}
 			}
 		}
@@ -260,25 +274,43 @@ int main(int argc, char *argv[]){
 					//if it does then  give it and unblock it
 				//then go through all unblocked processes and see if they need anything
 			if(pcbPtr[i].waitingToBlock == 1 && pcbPtr[i].isSet == 1){
-				unblockProcess(pcbPtr, resourcePtr, i);
+				unblockProcess(pcbPtr, resourcePtr, i, &deadlockAvoidance);
 			}
 
 			
 		}
-		for(i = 0; i < 18; i++){
+		if(requestsGranted %20 == 0){
+			printProcessLimits(resourcePtr, pcbPtr);
+			printProcessRequirement(resourcePtr, pcbPtr);
+			printProcessAllocation(resourcePtr, pcbPtr);
+			printResources(resourcePtr, pcbPtr);
+		}
+		/*for(i = 0; i < 18; i++){
 			if(pcbPtr[i].isSet == 1){
+				printf("sent message\n");
 				message.mesg_type = pcbPtr[i].pid;
 				sprintf(message.mesg_text,"wake up shithead");
 				msgsnd(msgid, &message, sizeof(message), pcbPtr[i].pid);
 			}
-		}
+		}*/
 		
 		/*Maybe I'd have a function check for terminating. Like have the user set a 
 		terminating variable right before it dies. Oh also what if I had a for loop that was the size of 
 		all running processes and checked for a message rcv. BUT how would it know that the same child is 
 		sending more than 1 message?*/
 	}while((*seconds < 20) && alrm == 0 && forked < 101);
-
+	
+	for(i = 0; i < 18; i++){
+		if(pcbPtr[i].isSet == 1){		
+			pcbPtr[i].complete = 1;
+		}	
+	}
+	for(i = 0; i < 18; i++){
+		if(pcbPtr[i].isSet == 1){
+			msgrcv(msgid, &message, sizeof(message), pcbPtr[i].pid, 0);
+			fprintf(logFile, "User made %d requests with %d fulfilled, made %d releases, and was blocked %d times.\n", pcbPtr[i].requestsMade, pcbPtr[i].requestsGranted, pcbPtr[i].releasesMade, pcbPtr[i].timesBlocked);
+		}
+	}
 	printf("OSS: OUT OF LOOP\n");	
 	
  	fclose(logFile);

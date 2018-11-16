@@ -28,6 +28,11 @@ typedef struct resourceDesc{
 }resourceDesc;
 
 typedef struct PCB{
+	int requestsMade;
+	int releasesMade;
+	int requestsGranted;
+	int timesBlocked;
+	int complete;
 	int waitingToBlock;
 	int position;
 	int isSet;
@@ -118,13 +123,22 @@ int resourceAllocation(PCB *pcbPtr, resourceDesc *resource, int position){
 	//if resource requested is more than whats available
 	int i;
 	//im confused as to what the resource requirements are in relation. will it ever request more than that? can it request more than what is started with? NO!
+	for(i = 0; i < 20; i++){
+		if(pcbPtr[position].resourceRequirements[i] > resource[i].resources){
+			pcbPtr[i].waitingToBlock = 1;
+			pcbPtr[position].timesBlocked++;
+			printf("P%d is being blocked because it needed %d resources from R%d and it only had %d.\n", position, pcbPtr[position].resourceRequirements[i], i, resource[i].resources);
+			return 0;
+		}
+	}
 	for(i = 0; i < 	20; i++){
 		if(pcbPtr[position].resourceRequirements[i] > 0){	
 			if((pcbPtr[position].resourcesAllocated[i] + pcbPtr[position].resourceRequirements[i]) > pcbPtr[position].resourceLimits[i]){ //checking if its asking for more than its limit
-				printf("P%d wanted more than its limit %d of resource R%d\n", getpid(), pcbPtr[position].resourceLimits[i], i); 		
+				printf("P%d pid %d wanted more than its limit %d of resource R%d\n", position, getpid(), pcbPtr[position].resourceLimits[i], i); 		
 				//return 1;
 			} else if(resource[i].resources < pcbPtr[position].resourceRequirements[i]){ //checking if it shouold block cause process aksing more than resource currently has
 				pcbPtr[position].waitingToBlock = 1; //it will be blocked in oss later
+				pcbPtr[position].timesBlocked++;
 				printf("P%d is being blocked because it needed %d resources from R%d and it only had %d.\n", position, pcbPtr[position].resourceRequirements[i], i, resource[i].resources);
 				return 0; 
 			} else { //otherwise give it the thing.
@@ -156,19 +170,21 @@ void resourceRelease(PCB *pcbPtr, resourceDesc *resource, int position){
 		}
 	}
 }
-void unblockProcess(PCB *pcbPtr, resourceDesc *resourcePtr, int position){
-	int i;
-	for(i = 0; i < 20; i++){
-		if(pcbPtr[position].resourceRequirements[i] <= resourcePtr[i].resources){
-			resourceAllocation(pcbPtr, resourcePtr, position);
-			pcbPtr[position].waitingToBlock = 0;
+void unblockProcess(PCB *pcbPtr, resourceDesc *resourcePtr, int position, int *deadlockAvoidance){
+	int i; //doesnt unblock but tests if it can be.
+	deadlockAvoidance+=1;
+	for(i = 0; i < 20; i++){ //do i block it if it wants one more than it can get?
+		if(pcbPtr[position].resourceRequirements[i] > resourcePtr[i].resources){
 			return;
-		}	
+		}
 	}
+	resourceAllocation(pcbPtr, resourcePtr, position);
+	pcbPtr[position].waitingToBlock = 0;		
 }
 void clearPcb(PCB *pcbPtr, resourceDesc *resourcePtr, int position){
 	int i;
 	for(i = 0; i < 20; i++){
+		printf("Resource %d is getting %d bringing it to %d from dying process %d pid %d\n", i, pcbPtr[position].resourcesAllocated[i], (resourcePtr[i].resources + pcbPtr[position].resourcesAllocated[i]), position, pcbPtr[position].pid);
 		resourcePtr[i].resources += pcbPtr[position].resourcesAllocated[i]; //release it	
 		pcbPtr[position].resourceLimits[i] = 0;		
 		pcbPtr[position].resourceRequirements[i] = 0;
@@ -178,6 +194,11 @@ void clearPcb(PCB *pcbPtr, resourceDesc *resourcePtr, int position){
 	pcbPtr[position].position = 0;
 	pcbPtr[position].isSet = 0;
 	pcbPtr[position].pid = 0;	
+	pcbPtr[position].complete = 0;
+	pcbPtr[position].timesBlocked = 0;
+	pcbPtr[position].requestsGranted = 0;
+	pcbPtr[position].requestsMade = 0;
+	pcbPtr[position].releasesMade = 0;
 }
 //For the queues
 

@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
 	int pcbid = atoi(argv[2]);
 	int position = atoi(argv[3]);
 	int resourceid = atoi(argv[4]);
-	int complete = 0, event = 0, eventResource = 0;	
+	int event = 0, eventResource = 0, requestsMade = 0, releasesMade = 0;	
 	pid_t pid = getpid();
 	unsigned int *seconds = 0, *nanoseconds = 0, eventTimeSeconds = 0, eventTimeNanoseconds = 0;
         resourceDesc *resourcePtr = NULL;
@@ -58,33 +58,36 @@ int main(int argc, char *argv[]) {
 	//initializeUser(&seconds, &nanoseconds, pcbPtr, position);
 	message.mesg_type = pid;
 	pcbPtr[position].isSet = 1;
-	while(complete == 0){
-		msgrcv(msgid, &message, sizeof(message), pid, 0);
+	while(pcbPtr[position].complete == 0){
+		//msgrcv(msgid, &message, sizeof(message), pid, 0);
 		if(pcbPtr[position].waitingToBlock == 0){
-			//printf("What fuck!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+			//printf("Process P%d is unblocked and waiting for event at %d:%d at %d:%d\n", position, *seconds, *nanoseconds, eventTimeSeconds, eventTimeNanoseconds);
 			if((*seconds == eventTimeSeconds && *nanoseconds >= eventTimeNanoseconds) || *seconds > eventTimeSeconds){						
 				event = rand()%99;
 				if(event >= 0 && event < 20){
 					printf("USER: P%d Event DEATH block status %d.\n", position, pcbPtr[position].waitingToBlock);
 					//kill & release all
-					sprintf(message.mesg_text,"%d %d user dead\n", 0, 2);
+					sprintf(message.mesg_text,"%d %d %d user dead\n", 27, 0, 2);
 					msgsnd(msgid, &message, sizeof(message), pid);
-					complete = 1;
+					msgrcv(msgid, &message, sizeof(message), pid, 0);
+					pcbPtr[position].complete = 1;
 				} else if (event >= 20 && event < 40){
 					//request random
 					printf("USER: P%d Event REQUEST block status %d.\n", position, pcbPtr[position].waitingToBlock);
 					eventResource = rand()%20;
-					sprintf(message.mesg_text,"%d %d user wants x\n", eventResource, 1);
+					sprintf(message.mesg_text,"%d %d %d user wants x\n", 27, eventResource, 1);
 					msgsnd(msgid, &message, sizeof(message), pid);
 					msgrcv(msgid, &message, sizeof(message), pid, 0);
+					pcbPtr[position].requestsMade++;
 					//may block child somehow as it waits for confirmation.
 				} else if (event >= 40){
 					//release random
 					printf("USER: P%d Event RELEASE block status %d.\n", position, pcbPtr[position].waitingToBlock);
 					eventResource = rand()%20;
-					sprintf(message.mesg_text,"%d %d user releases x\n", eventResource, 0);
+					sprintf(message.mesg_text,"%d %d %d user releases x\n", 27, eventResource, 0);
 					msgsnd(msgid, &message, sizeof(message), pid);
 					msgrcv(msgid, &message, sizeof(message), pid, 0);
+					pcbPtr[position].releasesMade++;
 				}
 				setRandomEventTime(seconds, nanoseconds, &eventTimeSeconds, &eventTimeNanoseconds);
 			}
@@ -92,11 +95,11 @@ int main(int argc, char *argv[]) {
 	}
 
 	
-	//sprintf(message.mesg_text,"user %d position being passed is %d and the pcb is %d\n", pid, position, pcbPtr[position].position);
+	sprintf(message.mesg_text,"user %d position being passed is %d and the pcb is %d\n", pid, position, pcbPtr[position].position);
 	//printf("USER: Before MSG SEND\n");
-	//msgsnd(msgid, &message, sizeof(message), 0);
+	msgsnd(msgid, &message, sizeof(message), pid);
 	//printf("USER: AFTER msgsnd\n");
-	printf("USER: %d\n", pid);
+	printf("USER: position %d pid %d\n", position, pid);
 	printf("USER: seconds are: %u nano are: %u\n", *seconds, *nanoseconds);
 	shmdt(seconds);
      	shmdt(pcbPtr);
