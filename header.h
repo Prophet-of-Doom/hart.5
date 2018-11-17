@@ -43,13 +43,7 @@ typedef struct PCB{
 	pid_t pid;
 }PCB;
 
-typedef struct QNodeType{
-	PCB *qptr;
-	struct QNodeType *next;
-	//struct QNodeType *currentNode;
-}QNode;
 
-static QNode *head, *tail;
 pid_t pid = 0;
 PCB pcbArray[18];
 resourceDesc resourceArray[20];
@@ -138,26 +132,26 @@ int resourceAllocation(PCB *pcbPtr, resourceDesc *resource, int position){
 		if(pcbPtr[position].resourceRequirements[i] > resource[i].resources){
 			pcbPtr[i].waitingToBlock = 1;
 			pcbPtr[position].timesBlocked++;
-			printf("P%d is being blocked because it needed %d resources from R%d and it only had %d.\n", position, pcbPtr[position].resourceRequirements[i], i, resource[i].resources);
+			//printf("P%d is being blocked because it needed %d resources from R%d and it only had %d.\n", position, pcbPtr[position].resourceRequirements[i], i, resource[i].resources);
 			return 0;
 		}
 	}
 	for(i = 0; i < 	20; i++){
 		if(pcbPtr[position].resourceRequirements[i] > 0){	
 			if((pcbPtr[position].resourcesAllocated[i] + pcbPtr[position].resourceRequirements[i]) > pcbPtr[position].resourceLimits[i]){ //checking if its asking for more than its limit
-				printf("P%d pid %d wanted more than its limit %d of resource R%d\n", position, getpid(), pcbPtr[position].resourceLimits[i], i); 		
+				//printf("P%d pid %d wanted more than its limit %d of resource R%d\n", position, getpid(), pcbPtr[position].resourceLimits[i], i); 		
 				//return 1;
 			} else if(resource[i].resources < pcbPtr[position].resourceRequirements[i]){ //checking if it shouold block cause process aksing more than resource currently has
 				pcbPtr[position].waitingToBlock = 1; //it will be blocked in oss later
 				pcbPtr[position].timesBlocked++;
-				printf("P%d is being blocked because it needed %d resources from R%d and it only had %d.\n", position, pcbPtr[position].resourceRequirements[i], i, resource[i].resources);
+				//printf("P%d is being blocked because it needed %d resources from R%d and it only had %d.\n", position, pcbPtr[position].resourceRequirements[i], i, resource[i].resources);
 				return 0; 
 			} else { //otherwise give it the thing.
-				printf("P%d is requesting %d resources from R%d", position, pcbPtr[position].resourceRequirements[i], i);
+				//printf("P%d is requesting %d resources from R%d", position, pcbPtr[position].resourceRequirements[i], i);
 				resource[i].resources -= pcbPtr[position].resourceRequirements[i]; //available - request
 				pcbPtr[position].resourcesAllocated[i] += pcbPtr[position].resourceRequirements[i]; //allocation + request
 				pcbPtr[position].resourceRequirements[i] -= pcbPtr[position].resourceRequirements[i]; // need - request;
-				printf(" bringing R to %d from max of %d\n", resource[i].resources, resource[i].max);
+				//printf(" bringing R to %d from max of %d\n", resource[i].resources, resource[i].max);
 			}
 		}	
 	}
@@ -170,10 +164,10 @@ void resourceRelease(PCB *pcbPtr, resourceDesc *resource, int position){
 	for(i = 0; i < 20; i++){
 		if(pcbPtr[position].resourceRequirements[i] > 0){
 			if(pcbPtr[position].resourcesAllocated[i] < pcbPtr[position].resourceRequirements[i]){ //can it release more than it asked for?
-				printf("canny do that m8\n");				
+				//printf("canny do that m8\n");				
 				return;
 			} else {
-				printf("P%d is releasing %d resources from R%d", position, pcbPtr[position].resourceRequirements[i], i);
+				//printf("P%d is releasing %d resources from R%d", position, pcbPtr[position].resourceRequirements[i], i);
 				resource[i].resources += pcbPtr[position].resourceRequirements[i]; //release it				
 				pcbPtr[position].resourcesAllocated[i] -= pcbPtr[position].resourceRequirements[i]; //decrement process allocated
 				pcbPtr[position].resourceRequirements[i] -= pcbPtr[position].resourceRequirements[i]; //decrement process requirement
@@ -195,7 +189,7 @@ void unblockProcess(PCB *pcbPtr, resourceDesc *resourcePtr, int position, int *d
 void clearPcb(PCB *pcbPtr, resourceDesc *resourcePtr, int position){
 	int i;
 	for(i = 0; i < 20; i++){
-		printf("Resource %d is getting %d bringing it to %d from dying process %d pid %d\n", i, pcbPtr[position].resourcesAllocated[i], (resourcePtr[i].resources + pcbPtr[position].resourcesAllocated[i]), position, pcbPtr[position].pid);
+		//printf("Resource %d is getting %d bringing it to %d from dying process %d pid %d\n", i, pcbPtr[position].resourcesAllocated[i], (resourcePtr[i].resources + pcbPtr[position].resourcesAllocated[i]), position, pcbPtr[position].pid);
 		resourcePtr[i].resources += pcbPtr[position].resourcesAllocated[i]; //release it	
 		pcbPtr[position].resourceLimits[i] = 0;		
 		pcbPtr[position].resourceRequirements[i] = 0;
@@ -212,104 +206,4 @@ void clearPcb(PCB *pcbPtr, resourceDesc *resourcePtr, int position){
 	pcbPtr[position].releasesMade = 0;
 }
 //For the queues
-
-int isBlockedQueueEmpty(){
-	if(head == NULL){
-		printf("HEAD EMPTY\n");
-		return 1;
-	} else {
-		printf("HEAD FULL\n");
-		return 0;
-        }
-};
-
-
-int isBlockedQueueFull(){
-        return FALSE;
-};
-
-void initBlockedQueue(){
-	head = tail = NULL;
-};
-
-void clearBlockedQueue(){
-	QNode *temp;
-	while(head != NULL){
-		temp = head;
-		head = head->next;
-		free(temp);
-	}
-	head = tail = NULL;
-};
-
-int enqueueBlocked(PCB *sptr, int position){
-	 QNode *temp;
-        if(isBlockedQueueFull()) return FALSE;
-	printf("ENQUEUEING Blocked %d\n", sptr[position].pid);
-        temp = (QNode *)malloc(sizeof(QNode));
-        temp -> qptr = &sptr[position];
-        temp -> next = NULL;
-        if(head == NULL){
-                head = tail = temp;
-        } else {
-                tail -> next = temp;
-                tail = temp;
-        }
-        return TRUE;
-};
-
-pid_t dequeueBlocked(PCB *sptr, int *position){	
-	printf("DEQUEUEING Blocked %d\n", sptr[*position].pid);
-	
-	QNode *temp;
-        if(isBlockedQueueEmpty()){
-                return FALSE;
-        } else {
-                *position = head->qptr[0].position;
-	        printf("POSITION Blocked: %d\n", *position);
-		sptr[*position] = head->qptr[0];
-		temp = head;
-		head = head->next;
-                free(temp);
-
-                if(isBlockedQueueEmpty()){
-                        head = tail = NULL;
-                }
-        }
-        return sptr[*position].pid;
-};
- 
-void enqueueBlockedProcess(PCB *sptr){
-	int i;
-	for(i = 0; i < 18; i++){
-		if(sptr[i].waitingToBlock == 1){
-			enqueueBlocked(sptr, i);
-		}
-	}
-};
-// end of queue funcs
-/*int resourceAllocation(PCB *pcbPtr, resourceDesc *resource, int position, int resourceRequested, int amount){
-	//should i be giving it one at a time? could have a while loop in here that gives it the resources until the requirement one at a time.
-
-	//im confused as to what the resource requirements are in relation. will it ever request more than that? can it request more than what is started with? NO!
-	printf("P%d wants %d from R%d\n", position, amount, resourceRequested);
-	if((pcbPtr[position].resourcesAllocated[resourceRequested] + amount) > pcbPtr[position].resourceLimits[resourceRequested]){ //checking if its asking for more than its limit
-		printf("P%d wanted more than its limit %d\n", getpid(), pcbPtr[position].resourceLimits[resourceRequested]); 		
-		return 1;
-	} else if(resource[resourceRequested].resources < amount){ //checking if it shouold block cause process aksing more than resource currently has
-		pcbPtr[position].resourceRequirements[resourceRequested] += amount;
-		pcbPtr[position].waitingToBlock = 1; //it will be blocked in oss later
-		printf("P%d is being blocked because it needed %d resources from R%d and it only had %d.\n", position, amount, resourceRequested, resource[resourceRequested].resources);
-		return 0; 
-	} else { //otherwise give it the thing.
-		if(pcbPtr[position].resourcesAllocated[resourceRequest] == pcbPtr[position].resourceRequirements[resourceRequested]){	
-			pcbPtr[position].resourceRequirements[resourceRequested] += amount; //If the total allocated is equal to the requirement and it wants more.
-		}
-		resource[resourceRequested].resources -= amount;
-		pcbPtr[position].resourcesAllocated[resourceRequested] += amount;
-		printf("P%d is requesting %d resources from R%d bringing it to %d from max of %d\n", position, amount, resourceRequested, resource[resourceRequested].resources, resource[resourceRequested].max);
-	}	
-	return 1;
-}*/
-
 

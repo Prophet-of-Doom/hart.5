@@ -23,7 +23,7 @@ int checkArrPosition(PCB *pcbPtr, int *position){
         int i = 0;
         for(i = 0; i < 18; i++){
                 if(pcbPtr[i].isSet == 0){
-			printf("Position %d is free\n", i);
+			//printf("Position %d is free\n", i);
                         *position = i;
                         return 1;
                 }
@@ -35,7 +35,7 @@ void initializeResourceArray(resourceDesc *resourcePtr){
 	for(i = 0; i < 20; i++){
 		resourcePtr[i].resources = rand()%(10)+1;
 		resourcePtr[i].max = resourcePtr[i].resources;
-		printf("Resource %d was assigned with %d resources\n", i, resourcePtr[i].resources);
+		//printf("Resource %d was assigned with %d resources\n", i, resourcePtr[i].resources);
 	}
 }
 
@@ -58,69 +58,69 @@ void initializePCBArrays(PCB *pcbPtr, int position, resourceDesc *resourcePtr){
 		//pcbPtr[position].resourceRequirements[i] = random; //Sets the requirement for every resource
 	}
 }
-void printProcessLimits(resourceDesc *resourcePtr, PCB *pcbPtr){
-	printf("\nPROCESS MAX TABLE (The most each process gets)\n");
+void printProcessLimits(resourceDesc *resourcePtr, PCB *pcbPtr, FILE *logFile){
+	fprintf(logFile,"\nPROCESS MAX TABLE (The most each process gets)\n");
 	int i, j;
-	printf("\t");
+	fprintf(logFile,"\t");
 	for(i = 0; i < 20; i++){
-		printf("R%d\t", i);
+		fprintf(logFile,"R%d\t", i);
 	}
 	for (i = 0; i < 18; i++){
 		if(pcbPtr[i].isSet == 1){
-			printf("\nP%d\t", i);
+			fprintf(logFile,"\nP%d\t", i);
 			for(j = 0; j < 20; j++){
-				printf("%d\t", pcbPtr[i].resourceLimits[j]);
+				fprintf(logFile,"%d\t", pcbPtr[i].resourceLimits[j]);
 			}
 		}
 	}
 }
-void printProcessRequirement(resourceDesc *resourcePtr, PCB *pcbPtr){
-	printf("\nPROCESS REQUIREMENT TABLE (what each process needs)\n");
+void printProcessRequirement(resourceDesc *resourcePtr, PCB *pcbPtr, FILE *logFile){
+	fprintf(logFile,"\nPROCESS REQUIREMENT TABLE (what each process needs)\n");
 	int i, j;
-	printf("\t");
+	fprintf(logFile,"\t");
 	for(i = 0; i < 20; i++){
-		printf("R%d\t", i);
+		fprintf(logFile,"R%d\t", i);
 	}
 	for (i = 0; i < 18; i++){
 		if(pcbPtr[i].isSet == 1){
-			printf("\nP%d\t", i);
+			fprintf(logFile,"\nP%d\t", i);
 			for(j = 0; j < 20; j++){
-				printf("%d\t", pcbPtr[i].resourceRequirements[j]);
+				fprintf(logFile,"%d\t", pcbPtr[i].resourceRequirements[j]);
 			}
 		}
 	}
 }
-void printProcessAllocation(resourceDesc *resourcePtr, PCB *pcbPtr){
-	printf("\nPROCESS ALLOCATION TABLE (what each process currently has)\n");
+void printProcessAllocation(resourceDesc *resourcePtr, PCB *pcbPtr, FILE *logFile){
+	fprintf(logFile,"\nPROCESS ALLOCATION TABLE (what each process currently has)\n");
 	int i, j;
-	printf("\t");
+	fprintf(logFile,"\t");
 	for(i = 0; i < 20; i++){
-		printf("R%d\t", i);
+		fprintf(logFile,"R%d\t", i);
 	}
 	for (i = 0; i < 18; i++){
 		if(pcbPtr[i].isSet == 1){
-			printf("\nP%d\t", i);
+			fprintf(logFile,"\nP%d\t", i);
 			for(j = 0; j < 20; j++){
-				printf("%d\t", pcbPtr[i].resourcesAllocated[j]);
+				fprintf(logFile,"%d\t", pcbPtr[i].resourcesAllocated[j]);
 			}
 		}
 	}
 }
 
-void printResources(resourceDesc *resourcePtr, PCB *pcbPtr){
-	printf("\nCURRENT RESOURCE TABLE (what each resource currently has)\n");
+void printResources(resourceDesc *resourcePtr, PCB *pcbPtr, FILE *logFile){
+	fprintf(logFile, "\nCURRENT RESOURCE TABLE (what each resource currently has)\n");
 	int i;
-	printf("\t");
+	fprintf(logFile,"\t");
 	for(i = 0; i < 20; i++){
-		printf("R%d\t", i);
+		fprintf(logFile,"R%d\t", i);
 	}
-	printf("\nMAX:\t");
+	fprintf(logFile,"\nMAX:\t");
 	for (i = 0; i < 20; i++){
-		printf("%d\t", resourcePtr[i].max);
+		fprintf(logFile,"%d\t", resourcePtr[i].max);
 	}	
-	printf("\nCRNT:\t");
+	fprintf(logFile,"\nCRNT:\t");
 	for (i = 0; i < 20; i++){
-		printf("%d\t", resourcePtr[i].resources);
+		fprintf(logFile,"%d\t", resourcePtr[i].resources);
 	}
 }
 void setRandomForktime(unsigned int *seconds, unsigned int *nanoseconds, unsigned int *forkTimeSeconds, unsigned int *forkTimeNanoseconds){
@@ -156,10 +156,10 @@ int main(int argc, char *argv[]){
         createSharedMemKeys(&resourceKey, &timeKey, &pcbKey);
         createSharedMemory(&timeid, &pcbid, &resourceid, timeKey, pcbKey, resourceKey);
 	attachToSharedMemory(&seconds, &nanoseconds, &pcbPtr ,&resourcePtr, timeid, pcbid, resourceid);
-	printf("OSS timeid %d pcbid %d resourceid %d\n", timeid, pcbid, resourceid);
-      	initBlockedQueue();
+	//printf("OSS timeid %d pcbid %d resourceid %d\n", timeid, pcbid, resourceid);
+
 	initializeResourceArray(resourcePtr);
-	printResources(resourcePtr, pcbPtr);
+	//printResources(resourcePtr, pcbPtr);
 	
 	int forked = 0, forkTimeSet = 0, i = 0;
 	char childRequestType[20], childRequestResource[20], childIdentifier[20];
@@ -177,9 +177,9 @@ int main(int argc, char *argv[]){
 		if(forkTimeSet == 0){		
 			setRandomForktime(seconds, nanoseconds, &forkTimeSeconds, &forkTimeNanoseconds);
 			forkTimeSet = 1;
-			printf("OSS: Fork time set for %d.%d\n", forkTimeSeconds, forkTimeNanoseconds);
+			//printf("OSS: Fork time set for %d.%d\n", forkTimeSeconds, forkTimeNanoseconds);
 		}		
-		*nanoseconds += 5000;
+		*nanoseconds += 25000;
 		if (*nanoseconds >= 1000000000){ //billion
                 	*seconds += 1;
                        	*nanoseconds = 0;
@@ -193,11 +193,11 @@ int main(int argc, char *argv[]){
 				//printf("OSS: local position is %d pcb position is %d\n", position, pcbPtr[position].position);
 				createArgs(sharedTimeMem, sharedPCBMem, sharedPositionMem, sharedResourceMem, timeid, pcbid ,resourceid, position);
 				forkChild(sharedTimeMem, sharedPCBMem, sharedPositionMem, sharedResourceMem, seconds, nanoseconds, &position);
-				printf("OSS: Created a user at %u.%u\n", *seconds, *nanoseconds);
+				//printf("OSS: Created a user at %u.%u\n", *seconds, *nanoseconds);
 				//sleep(2);
 				pcbPtr[position].complete = 0;
 				forked++;
-				printf("FORKING! %d\n", forked);
+				//printf("FORKING! %d\n", forked);
 				//for(i = 0; i < 20; i ++){ // initial resource allocation.
 				//	if(pcbPtr[i].isSet == 1){
 				//		printf("IN HERE ASSHOLE\n");
@@ -208,11 +208,11 @@ int main(int argc, char *argv[]){
 						
 				//	}
 				//}
-				printProcessLimits(resourcePtr, pcbPtr);
-				printProcessRequirement(resourcePtr, pcbPtr);
-				printProcessAllocation(resourcePtr, pcbPtr);
-				printResources(resourcePtr, pcbPtr);
-				printf("\nOSS: Before MSG RCV\n");
+				//printProcessLimits(resourcePtr, pcbPtr);
+				//printProcessRequirement(resourcePtr, pcbPtr);
+				//printProcessAllocation(resourcePtr, pcbPtr);
+				//printResources(resourcePtr, pcbPtr);
+				//printf("\nOSS: Before MSG RCV\n");
 				//msgrcv(msgid, &message, sizeof(message), 1, 0);
 				//printf("OSS: Message received is %s\n", message.mesg_text);
 			}
@@ -220,8 +220,7 @@ int main(int argc, char *argv[]){
 			
 		}
 		//loop that goes through every user and checks to see if theres a request on that channel
-		struct msqid_ds msqid_ds, *buff;
-		buff = &msqid_ds;
+		
 		for(i = 0; i < 18; i++){
 			if(pcbPtr[i].isSet == 1 && pcbPtr[i].waitingToBlock == 0){
 				if(msgrcv(msgid, &message, sizeof(message), pcbPtr[i].pid, IPC_NOWAIT) > 0){				
@@ -233,39 +232,43 @@ int main(int argc, char *argv[]){
 							//request resource;
 							//maybe have function return a value for whether it should be blocked
 							//change requirement based on msg
-							printf("11111111111111111111111111111111111111111111111111111111111111111111111111111\n");			
+							//printf("11111111111111111111111111111111111111111111111111111111111111111111111111111\n");			
 							if((pcbPtr[i].resourcesAllocated[atoi(childRequestResource)] + 1) <= pcbPtr[i].resourceLimits[atoi(childRequestResource)]){
-							printf("22222222222222222222222222222222222222222222222222222222222222222222222222222\n");
+							//printf("22222222222222222222222222222222222222222222222222222222222222222222222222222\n");
+								if(verbose)
+									fprintf(logFile, "OSS: Process %d wants %d at %u.%u.\n", i, atoi(childRequestResource), *seconds, *nanoseconds); 
 								pcbPtr[i].resourceRequirements[atoi(childRequestResource)] += 1;
 								if(resourceAllocation(pcbPtr, resourcePtr, i) == 0){
 									//add to blocked queue;
-									printf("OSS: P%d is blocked\n", i);
+									fprintf(logFile, "OSS: P%d is being blocked at %u.%u.\n", i, *seconds, *nanoseconds);
 								} else {
-									printProcessLimits(resourcePtr, pcbPtr);
-									printProcessRequirement(resourcePtr, pcbPtr);
-									printProcessAllocation(resourcePtr, pcbPtr);
-									printResources(resourcePtr, pcbPtr);
+									//printProcessLimits(resourcePtr, pcbPtr);
+									//printProcessRequirement(resourcePtr, pcbPtr);
+									//printProcessAllocation(resourcePtr, pcbPtr);
+									//printResources(resourcePtr, pcbPtr);
 									requestsGranted++;
 								}
 							}
 						} else if(atoi(childRequestType) == 0){
+							if(verbose)
+								fprintf(logFile, "OSS: Process %d releases %d at %u.%u.\n", i, atoi(childRequestResource), *seconds, *nanoseconds); 
 							//release resource;
 							releases++;
 							if((pcbPtr[i].resourcesAllocated[atoi(childRequestResource)] - 1) >= 0){
 								pcbPtr[i].resourceRequirements[atoi(childRequestResource)] += 1;
 								resourceRelease(pcbPtr, resourcePtr, i);
-								printProcessLimits(resourcePtr, pcbPtr);
-								printProcessRequirement(resourcePtr, pcbPtr);
-								printProcessAllocation(resourcePtr, pcbPtr);
-								printResources(resourcePtr, pcbPtr);
+								//printProcessLimits(resourcePtr, pcbPtr);
+								//printProcessRequirement(resourcePtr, pcbPtr);
+								//printProcessAllocation(resourcePtr, pcbPtr);
+								//printResources(resourcePtr, pcbPtr);
 							}
 						} else {
-							fprintf(logFile, "User made %d requests with %d fulfilled, made %d releases, and was blocked %d times.\n", pcbPtr[i].requestsMade, pcbPtr[i].requestsGranted, pcbPtr[i].releasesMade, pcbPtr[i].timesBlocked);
+							fprintf(logFile, "User process is complete at %u:%u and made %d requests with %d fulfilled, made %d releases, and was blocked %d times.\n", *seconds, *nanoseconds, pcbPtr[i].requestsMade, pcbPtr[i].requestsGranted, pcbPtr[i].releasesMade, pcbPtr[i].timesBlocked);
 							clearPcb(pcbPtr, resourcePtr, i);	
 						}
 						message.mesg_type = pcbPtr[i].pid;
 						sprintf(message.mesg_text,"wake up shithead");
-						printf("OSS sent wake up message.\n");						
+						//printf("OSS sent wake up message.\n");						
 						msgsnd(msgid, &message, sizeof(message), pcbPtr[i].pid);
 						pcbPtr[i].post = 1;
 					}
@@ -280,15 +283,17 @@ int main(int argc, char *argv[]){
 				//then go through all unblocked processes and see if they need anything
 			if(pcbPtr[i].waitingToBlock == 1 && pcbPtr[i].isSet == 1){
 				unblockProcess(pcbPtr, resourcePtr, i, &deadlockAvoidance);
+				if(pcbPtr[i].waitingToBlock == 0)
+					fprintf(logFile,"OSS: use %d is being unblocked at %u:%u.\n", i, *seconds, *nanoseconds); 
 			}
 
 			
 		}
 		if(20 % requestsGranted == 20){
-			printProcessLimits(resourcePtr, pcbPtr);
-			printProcessRequirement(resourcePtr, pcbPtr);
-			printProcessAllocation(resourcePtr, pcbPtr);
-			printResources(resourcePtr, pcbPtr);
+			printProcessLimits(resourcePtr, pcbPtr, logFile);
+			printProcessRequirement(resourcePtr, pcbPtr, logFile);
+			printProcessAllocation(resourcePtr, pcbPtr, logFile);
+			printResources(resourcePtr, pcbPtr, logFile);
 		}
 		/*for(i = 0; i < 18; i++){
 			if(pcbPtr[i].isSet == 1){
@@ -304,7 +309,7 @@ int main(int argc, char *argv[]){
 		all running processes and checked for a message rcv. BUT how would it know that the same child is 
 		sending more than 1 message?*/
 	}while((*seconds < 20) && alrm == 0 && forked < 101);
-	
+	printf("OSS: OUT OF LOOP1\n");	
 	for(i = 0; i < 18; i++){
 		if(pcbPtr[i].isSet == 1){
 			pcbPtr[i].post = 1;		
@@ -313,11 +318,12 @@ int main(int argc, char *argv[]){
 	}
 	for(i = 0; i < 18; i++){
 		if(pcbPtr[i].isSet == 1){
+			printf("waiting for message receive from %d\n.", i);
 			msgrcv(msgid, &message, sizeof(message), pcbPtr[i].pid, 0);
 			fprintf(logFile, "User made %d requests with %d fulfilled, made %d releases, and was blocked %d times.\n", pcbPtr[i].requestsMade, pcbPtr[i].requestsGranted, pcbPtr[i].releasesMade, pcbPtr[i].timesBlocked);
 		}
 	}
-	printf("OSS: OUT OF LOOP\n");	
+	printf("OSS: OUT OF LOOP2\n");	
 	
  	fclose(logFile);
     
