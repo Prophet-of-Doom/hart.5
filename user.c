@@ -114,7 +114,7 @@ int main(int argc, char *argv[]) {
 	sprintf(message.mesg_text,"user %d position being passed is %d and the pcb is %d\n", pid, position, pcbPtr[position].position);
 	//printf("USER: Before MSG SEND\n");
 	msgsnd(msgid, &message, sizeof(message), pid);
-	printf("USER: AFTER msgsnd %d\n", position);
+	//printf("USER: AFTER msgsnd %d\n", position);
 	//printf("USER: position %d pid %d\n", position, pid);
 	//printf("USER: seconds are: %u nano are: %u\n", *seconds, *nanoseconds);
 	shmdt(seconds);

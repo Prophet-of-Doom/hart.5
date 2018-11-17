@@ -138,6 +138,7 @@ void setRandomForktime(unsigned int *seconds, unsigned int *nanoseconds, unsigne
 
 		  
 int main(int argc, char *argv[]){
+	int verbose = 1;
 	srand(time(NULL));
 	alrm = 0;
 	
@@ -146,7 +147,7 @@ int main(int argc, char *argv[]){
         FILE *logFile = fopen(filename, "a");
 
 	key_t msgKey = ftok(".", 'G'), timeKey = 0, pcbKey = 0, resourceKey = 0; 
-	int msgid = msgget(msgKey, 0666 | IPC_CREAT), timeid = 0, pcbid = 0 ,resourceid = 0, position = 0, verbose = 0, requestsGranted=1, deadlockAvoidance = 0, releases = 0;
+	int msgid = msgget(msgKey, 0666 | IPC_CREAT), timeid = 0, pcbid = 0 ,resourceid = 0, position = 0, requestsGranted=1, deadlockAvoidance = 0, releases = 0;
 	unsigned int *seconds = 0, *nanoseconds = 0, forkTimeSeconds = 0, forkTimeNanoseconds = 0;
 	PCB *pcbPtr = NULL;	
 	resourceDesc *resourcePtr = NULL;
@@ -163,8 +164,8 @@ int main(int argc, char *argv[]){
 	
 	int forked = 0, forkTimeSet = 0, i = 0;
 	char childRequestType[20], childRequestResource[20], childIdentifier[20];
-	//signal(SIGALRM, timerKiller);
-        //alarm(2);
+	signal(SIGALRM, timerKiller);
+        alarm(2);
 	do{		
 		//sessentially i think it would be easier to fork 18 children first and in the process
 		//of doing so you set up the PCB requirements so every time you fork a child within the PCB you 
@@ -179,7 +180,7 @@ int main(int argc, char *argv[]){
 			forkTimeSet = 1;
 			//printf("OSS: Fork time set for %d.%d\n", forkTimeSeconds, forkTimeNanoseconds);
 		}		
-		*nanoseconds += 25000;
+		*nanoseconds += 50000;
 		if (*nanoseconds >= 1000000000){ //billion
                 	*seconds += 1;
                        	*nanoseconds = 0;
@@ -289,7 +290,7 @@ int main(int argc, char *argv[]){
 
 			
 		}
-		if(20 % requestsGranted == 20){
+		if(requestsGranted %20 == 0){
 			printProcessLimits(resourcePtr, pcbPtr, logFile);
 			printProcessRequirement(resourcePtr, pcbPtr, logFile);
 			printProcessAllocation(resourcePtr, pcbPtr, logFile);
@@ -309,7 +310,7 @@ int main(int argc, char *argv[]){
 		all running processes and checked for a message rcv. BUT how would it know that the same child is 
 		sending more than 1 message?*/
 	}while((*seconds < 20) && alrm == 0 && forked < 101);
-	printf("OSS: OUT OF LOOP1\n");	
+	//printf("OSS: OUT OF LOOP1\n");	
 	for(i = 0; i < 18; i++){
 		if(pcbPtr[i].isSet == 1){
 			pcbPtr[i].post = 1;		
@@ -318,12 +319,12 @@ int main(int argc, char *argv[]){
 	}
 	for(i = 0; i < 18; i++){
 		if(pcbPtr[i].isSet == 1){
-			printf("waiting for message receive from %d\n.", i);
+			//printf("waiting for message receive from %d\n.", i);
 			msgrcv(msgid, &message, sizeof(message), pcbPtr[i].pid, 0);
 			fprintf(logFile, "User made %d requests with %d fulfilled, made %d releases, and was blocked %d times.\n", pcbPtr[i].requestsMade, pcbPtr[i].requestsGranted, pcbPtr[i].releasesMade, pcbPtr[i].timesBlocked);
 		}
 	}
-	printf("OSS: OUT OF LOOP2\n");	
+	//printf("OSS: OUT OF LOOP2\n");	
 	
  	fclose(logFile);
     
