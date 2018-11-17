@@ -147,7 +147,7 @@ int main(int argc, char *argv[]){
         FILE *logFile = fopen(filename, "a");
 
 	key_t msgKey = ftok(".", 'G'), timeKey = 0, pcbKey = 0, resourceKey = 0; 
-	int msgid = msgget(msgKey, 0666 | IPC_CREAT), timeid = 0, pcbid = 0 ,resourceid = 0, position = 0, requestsGranted=1, deadlockAvoidance = 0, releases = 0;
+	int msgid = msgget(msgKey, 0666 | IPC_CREAT), timeid = 0, pcbid = 0 ,lines = 0,resourceid = 0, position = 0, requestsGranted=1, deadlockAvoidance = 0, releases = 0;
 	unsigned int *seconds = 0, *nanoseconds = 0, forkTimeSeconds = 0, forkTimeNanoseconds = 0;
 	PCB *pcbPtr = NULL;	
 	resourceDesc *resourcePtr = NULL;
@@ -163,7 +163,7 @@ int main(int argc, char *argv[]){
 	//printResources(resourcePtr, pcbPtr);
 	
 	int forked = 0, forkTimeSet = 0, i = 0;
-	char childRequestType[20], childRequestResource[20], childIdentifier[20];
+	char childRequestType[20], childRequestResource[20], childIdentifier[20], ch;
 	signal(SIGALRM, timerKiller);
         alarm(2);
 	do{		
@@ -309,6 +309,15 @@ int main(int argc, char *argv[]){
 		terminating variable right before it dies. Oh also what if I had a for loop that was the size of 
 		all running processes and checked for a message rcv. BUT how would it know that the same child is 
 		sending more than 1 message?*/
+		while(!feof(logFile)){
+			ch = fgetc(logFile);
+			if(ch == '\n'){
+				lines++;
+			}
+		}
+		if(lines >= 100000){
+			fclose(logFile);
+		}
 	}while((*seconds < 20) && alrm == 0 && forked < 101);
 	//printf("OSS: OUT OF LOOP1\n");	
 	for(i = 0; i < 18; i++){
