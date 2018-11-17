@@ -54,8 +54,8 @@ void initializePCBArrays(PCB *pcbPtr, int position, resourceDesc *resourcePtr){
 			limit = outerlimit;
 		}
 		pcbPtr[position].resourceLimits[i] = limit;
-		random = rand()%limit;
-		pcbPtr[position].resourceRequirements[i] = random; //Sets the requirement for every resource
+		//random = rand()%limit;
+		//pcbPtr[position].resourceRequirements[i] = random; //Sets the requirement for every resource
 	}
 }
 void printProcessLimits(resourceDesc *resourcePtr, PCB *pcbPtr){
@@ -66,9 +66,11 @@ void printProcessLimits(resourceDesc *resourcePtr, PCB *pcbPtr){
 		printf("R%d\t", i);
 	}
 	for (i = 0; i < 18; i++){
-		printf("\nP%d\t", i);
-		for(j = 0; j < 20; j++){
-			printf("%d\t", pcbPtr[i].resourceLimits[j]);
+		if(pcbPtr[i].isSet == 1){
+			printf("\nP%d\t", i);
+			for(j = 0; j < 20; j++){
+				printf("%d\t", pcbPtr[i].resourceLimits[j]);
+			}
 		}
 	}
 }
@@ -80,9 +82,11 @@ void printProcessRequirement(resourceDesc *resourcePtr, PCB *pcbPtr){
 		printf("R%d\t", i);
 	}
 	for (i = 0; i < 18; i++){
-		printf("\nP%d\t", i);
-		for(j = 0; j < 20; j++){
-			printf("%d\t", pcbPtr[i].resourceRequirements[j]);
+		if(pcbPtr[i].isSet == 1){
+			printf("\nP%d\t", i);
+			for(j = 0; j < 20; j++){
+				printf("%d\t", pcbPtr[i].resourceRequirements[j]);
+			}
 		}
 	}
 }
@@ -94,9 +98,11 @@ void printProcessAllocation(resourceDesc *resourcePtr, PCB *pcbPtr){
 		printf("R%d\t", i);
 	}
 	for (i = 0; i < 18; i++){
-		printf("\nP%d\t", i);
-		for(j = 0; j < 20; j++){
-			printf("%d\t", pcbPtr[i].resourcesAllocated[j]);
+		if(pcbPtr[i].isSet == 1){
+			printf("\nP%d\t", i);
+			for(j = 0; j < 20; j++){
+				printf("%d\t", pcbPtr[i].resourcesAllocated[j]);
+			}
 		}
 	}
 }
@@ -140,7 +146,7 @@ int main(int argc, char *argv[]){
         FILE *logFile = fopen(filename, "a");
 
 	key_t msgKey = ftok(".", 'G'), timeKey = 0, pcbKey = 0, resourceKey = 0; 
-	int msgid = msgget(msgKey, 0666 | IPC_CREAT), timeid = 0, pcbid = 0 ,resourceid = 0, position = 0, verbose = 0, requestsGranted=0, deadlockAvoidance = 0, releases = 0;
+	int msgid = msgget(msgKey, 0666 | IPC_CREAT), timeid = 0, pcbid = 0 ,resourceid = 0, position = 0, verbose = 0, requestsGranted=1, deadlockAvoidance = 0, releases = 0;
 	unsigned int *seconds = 0, *nanoseconds = 0, forkTimeSeconds = 0, forkTimeNanoseconds = 0;
 	PCB *pcbPtr = NULL;	
 	resourceDesc *resourcePtr = NULL;
@@ -202,37 +208,34 @@ int main(int argc, char *argv[]){
 						
 				//	}
 				//}
-				//printProcessLimits(resourcePtr, pcbPtr);
-				//printProcessRequirement(resourcePtr, pcbPtr);
-				//printProcessAllocation(resourcePtr, pcbPtr);
-				//printResources(resourcePtr, pcbPtr);
-				//printf("\nOSS: Before MSG RCV\n");
+				printProcessLimits(resourcePtr, pcbPtr);
+				printProcessRequirement(resourcePtr, pcbPtr);
+				printProcessAllocation(resourcePtr, pcbPtr);
+				printResources(resourcePtr, pcbPtr);
+				printf("\nOSS: Before MSG RCV\n");
 				//msgrcv(msgid, &message, sizeof(message), 1, 0);
 				//printf("OSS: Message received is %s\n", message.mesg_text);
 			}
 			forkTimeSet = 0;
-			printProcessLimits(resourcePtr, pcbPtr);
-			printProcessRequirement(resourcePtr, pcbPtr);
-			printProcessAllocation(resourcePtr, pcbPtr);
-			printResources(resourcePtr, pcbPtr);
+			
 		}
 		//loop that goes through every user and checks to see if theres a request on that channel
+		struct msqid_ds msqid_ds, *buff;
+		buff = &msqid_ds;
 		for(i = 0; i < 18; i++){
 			if(pcbPtr[i].isSet == 1 && pcbPtr[i].waitingToBlock == 0){
-				if(msgrcv(msgid, &message, sizeof(message), pcbPtr[i].pid, IPC_NOWAIT) > 0){
-					printf("\nOSS: Message received is %s\n", message.mesg_text);					
+				if(msgrcv(msgid, &message, sizeof(message), pcbPtr[i].pid, IPC_NOWAIT) > 0){				
 					strcpy(childIdentifier, strtok(message.mesg_text," "));		
-							
 					if(atoi(childIdentifier) == 27){	
-						
 						strcpy(childRequestResource, strtok(NULL, " "));
 						strcpy(childRequestType, strtok(NULL, " "));		
 						if(atoi(childRequestType) == 1){
 							//request resource;
 							//maybe have function return a value for whether it should be blocked
 							//change requirement based on msg
-												
+							printf("11111111111111111111111111111111111111111111111111111111111111111111111111111\n");			
 							if((pcbPtr[i].resourcesAllocated[atoi(childRequestResource)] + 1) <= pcbPtr[i].resourceLimits[atoi(childRequestResource)]){
+							printf("22222222222222222222222222222222222222222222222222222222222222222222222222222\n");
 								pcbPtr[i].resourceRequirements[atoi(childRequestResource)] += 1;
 								if(resourceAllocation(pcbPtr, resourcePtr, i) == 0){
 									//add to blocked queue;
@@ -262,7 +265,9 @@ int main(int argc, char *argv[]){
 						}
 						message.mesg_type = pcbPtr[i].pid;
 						sprintf(message.mesg_text,"wake up shithead");
+						printf("OSS sent wake up message.\n");						
 						msgsnd(msgid, &message, sizeof(message), pcbPtr[i].pid);
+						pcbPtr[i].post = 1;
 					}
 				}
 			}
@@ -279,7 +284,7 @@ int main(int argc, char *argv[]){
 
 			
 		}
-		if(requestsGranted %20 == 0){
+		if(20 % requestsGranted == 20){
 			printProcessLimits(resourcePtr, pcbPtr);
 			printProcessRequirement(resourcePtr, pcbPtr);
 			printProcessAllocation(resourcePtr, pcbPtr);
@@ -301,7 +306,8 @@ int main(int argc, char *argv[]){
 	}while((*seconds < 20) && alrm == 0 && forked < 101);
 	
 	for(i = 0; i < 18; i++){
-		if(pcbPtr[i].isSet == 1){		
+		if(pcbPtr[i].isSet == 1){
+			pcbPtr[i].post = 1;		
 			pcbPtr[i].complete = 1;
 		}	
 	}

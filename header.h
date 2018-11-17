@@ -28,6 +28,7 @@ typedef struct resourceDesc{
 }resourceDesc;
 
 typedef struct PCB{
+	int post;
 	int requestsMade;
 	int releasesMade;
 	int requestsGranted;
@@ -101,9 +102,19 @@ void createArgs(char *sharedTimeMem, char *sharedPCBMem, char *sharedPositionMem
 };
 
 void initializeUser(unsigned int **seconds, unsigned int **nanoseconds, PCB *pcbPtr, int position){
+	int i = 0;	
 	srand(time(NULL));
 	pcbPtr[position].pid = getpid();
-	
+	pcbPtr[position].requestsMade = 0, 
+	pcbPtr[position].releasesMade = 0;
+	pcbPtr[position].requestsGranted = 0; 
+	pcbPtr[position].timesBlocked = 0;
+	pcbPtr[position].complete = 0;
+	pcbPtr[position].waitingToBlock = 0;
+	for(i = 0; i < 18; i++){	
+		pcbPtr[position].resourceRequirements[i] = 0;
+		pcbPtr[position].resourcesAllocated[i] = 0;
+	}
 	//printf("Current time %u %u\n", *seconds, *nanoseconds);
 };
 
